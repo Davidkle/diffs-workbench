@@ -12,7 +12,9 @@
     "preview": "vite preview --host 127.0.0.1",
     "ts-check": "tsc --noEmit",
     "lint": "eslint src bridge",
-    "format": "prettier --write src bridge *.json *.ts *.md .github/workflows/*.yml"
+    "format": "prettier --write src bridge *.json *.ts *.md .github/workflows/*.yml",
+    "desktop": "npm run build && electron .",
+    "package:mac": "npm run build && electron-builder --mac --arm64"
   },
   "dependencies": {
     "@pierre/diffs": "1.5.1",
@@ -38,6 +40,8 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.25.9",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -47,5 +51,32 @@
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.71.0",
     "vite": "^7.1.5"
+  },
+  "main": "desktop/main.cjs",
+  "description": "A local-first Git workbench",
+  "author": "David Le",
+  "license": "MIT",
+  "build": {
+    "appId": "com.davidkle.diffs",
+    "productName": "Diffs",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**",
+      "dist/**",
+      "build/bridge.mjs",
+      "package.json"
+    ],
+    "asar": false,
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dir",
+        "zip"
+      ],
+      "identity": null
+    },
+    "artifactName": "Diffs-${version}-${arch}.${ext}"
   }
 }

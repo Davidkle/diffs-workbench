@@ -17,7 +17,6 @@ import {
   FolderOpen,
   GitBranch,
   GitCommitHorizontal,
-  HardDrive,
   History,
   Link2,
   Loader2,
@@ -157,7 +156,7 @@ export function App() {
     setActive((previous) =>
       list.some((p) => p.id === previous) ? previous : list[0]?.id || "",
     );
-    setSyncText("Connected to local bridge");
+    setSyncText(window.diffsDesktop ? "Ready" : "Connected to local bridge");
     if (!list.length) {
       setState({
         ...demo,
@@ -459,6 +458,18 @@ export function App() {
   const additions = files.reduce((sum, f) => sum + f.additions, 0);
   const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
   const openDialog = () => {
+    if (window.diffsDesktop) {
+      void window.diffsDesktop
+        .chooseProject()
+        .then(async (path) => {
+          if (!path) return;
+          const project = await bridge.add(path);
+          setProjects(await bridge.projects());
+          openProject(project.id);
+        })
+        .catch((error) => toast.error(error.message));
+      return;
+    }
     if (requireConnection())
       showModal({
         kind: "open",
@@ -497,16 +508,20 @@ export function App() {
             }
             items={[
               { label: "Open repository…", onSelect: openDialog },
-              {
-                label: "Connect local bridge…",
-                onSelect: () =>
-                  showModal({
-                    kind: "connect",
-                    title: "Local bridge",
-                    description:
-                      "Pair this browser with the bridge running on your computer.",
-                  }),
-              },
+              ...(window.diffsDesktop
+                ? []
+                : [
+                    {
+                      label: "Connect local bridge…",
+                      onSelect: () =>
+                        showModal({
+                          kind: "connect",
+                          title: "Connect your computer",
+                          description:
+                            "Open your local projects in the Mac app.",
+                        }),
+                    },
+                  ]),
               {
                 label: "Close project tab",
                 disabled: !active,
@@ -932,23 +947,6 @@ export function App() {
               }
             />
             <span className="flex-1" />
-            <button
-              className={`connection-pill ${connected ? "connected" : ""}`}
-              onClick={() =>
-                showModal({
-                  kind: "connect",
-                  title: connected
-                    ? "Local bridge connected"
-                    : "Connect your computer",
-                  description:
-                    "Repositories and Git commands stay on your machine.",
-                })
-              }
-            >
-              <span />
-              {connected ? "Local" : "Connect"}
-              <Link2 size={12} />
-            </button>
           </div>
         </header>
         <div className="project-tabs">
@@ -1128,7 +1126,11 @@ export function App() {
           ) : (
             <>
               <span className="working-dot" />
-              <strong>Working directory</strong>
+              <strong>
+                {active
+                  ? "Working directory"
+                  : "Choose a project to get started"}
+              </strong>
               <span className="summary-message">
                 {changedCount
                   ? `${changedCount} changed file${changedCount !== 1 ? "s" : ""}`
@@ -1216,28 +1218,37 @@ export function App() {
                 <span>{files.filter((f) => f.staged).length} staged</span>
               </div>
             </aside>
-            <DiffPane
-              content={content}
-              loading={fileLoading}
-              full={full}
-              setFull={setFull}
-              split={split}
-              setSplit={setSplit}
-              fileMode={mode === "tree"}
-              onResolve={(value) =>
-                actionModal(
-                  "Save conflict resolution",
-                  "resolve",
-                  [],
-                  { path: selected, content: value },
-                  "Write your resolution to disk and stage this file.",
-                )
-              }
-              onPrevious={() => selectFile(files[currentIndex - 1].path)}
-              onNext={() => selectFile(files[currentIndex + 1].path)}
-              hasPrevious={currentIndex > 0}
-              hasNext={currentIndex >= 0 && currentIndex < files.length - 1}
-            />
+            {connected && !active ? (
+              <div className="welcome-project">
+                <FolderOpen size={32} />
+                <h2>Open a project</h2>
+                <p>Choose a folder on your Mac to review its changes.</p>
+                <Button onClick={openDialog}>Choose folder</Button>
+              </div>
+            ) : (
+              <DiffPane
+                content={content}
+                loading={fileLoading}
+                full={full}
+                setFull={setFull}
+                split={split}
+                setSplit={setSplit}
+                fileMode={mode === "tree"}
+                onResolve={(value) =>
+                  actionModal(
+                    "Save conflict resolution",
+                    "resolve",
+                    [],
+                    { path: selected, content: value },
+                    "Write your resolution to disk and stage this file.",
+                  )
+                }
+                onPrevious={() => selectFile(files[currentIndex - 1].path)}
+                onNext={() => selectFile(files[currentIndex + 1].path)}
+                hasPrevious={currentIndex > 0}
+                hasNext={currentIndex >= 0 && currentIndex < files.length - 1}
+              />
+            )}
           </div>
         )}
         <footer className="statusbar">
@@ -1264,10 +1275,6 @@ export function App() {
               </>
             )}
           </span>
-          <span className="status-local">
-            <HardDrive size={12} />
-            {connected ? "Local filesystem" : "Preview"}
-          </span>
         </footer>
       </main>
       <Dialog
@@ -1280,52 +1287,64 @@ export function App() {
       >
         {modal?.kind === "connect" ? (
           <div className="connect-content">
-            <div className="connect-step">
-              <span>1</span>
-              <div>
-                <strong>Start the local bridge</strong>
-                <p>In the project folder, run:</p>
-                <code>
-                  npm install
-                  <br />
-                  npm run bridge -- /path/to/repository
-                </code>
-                <a
-                  href="https://github.com/Davidkle/diffs-workbench#local-bridge"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Installation & source <ExternalLink size={12} />
-                </a>
+            <a
+              className="desktop-download"
+              href="https://github.com/Davidkle/diffs-workbench/releases/latest/download/Diffs-0.1.0-arm64.zip"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <strong>Get the Mac app</strong>
+              <span>Open the app, choose a folder, and start reviewing.</span>
+            </a>
+            <details className="advanced-setup">
+              <summary>Advanced: use this browser with a local service</summary>
+              <div className="connect-step">
+                <span>1</span>
+                <div>
+                  <strong>Start the local bridge</strong>
+                  <p>In the project folder, run:</p>
+                  <code>
+                    npm install
+                    <br />
+                    npm run bridge -- /path/to/repository
+                  </code>
+                  <a
+                    href="https://github.com/Davidkle/diffs-workbench#local-bridge"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Installation & source <ExternalLink size={12} />
+                  </a>
+                </div>
               </div>
-            </div>
-            <div className="connect-step">
-              <span>2</span>
-              <div>
-                <strong>Pair this browser</strong>
-                <p>
-                  Use the button below. Allow local network access if your
-                  browser asks.
-                </p>
+              <div className="connect-step">
+                <span>2</span>
+                <div>
+                  <strong>Pair this browser</strong>
+                  <p>
+                    Use the button below. Allow local network access if your
+                    browser asks.
+                  </p>
+                </div>
               </div>
-            </div>
-            <details>
-              <summary>Pair with a key instead</summary>
-              <label htmlFor="pair-key">
-                Key from ~/.diffs-workbench/token
-              </label>
-              <input
-                id="pair-key"
-                type="password"
-                placeholder="Paste your local pairing key"
-                value={values.token || ""}
-                onChange={(e) => setValues({ token: e.target.value })}
-              />
+              <details>
+                <summary>Pair with a key instead</summary>
+                <label htmlFor="pair-key">
+                  Key from ~/.diffs-workbench/token
+                </label>
+                <input
+                  id="pair-key"
+                  type="password"
+                  placeholder="Paste your local pairing key"
+                  value={values.token || ""}
+                  onChange={(e) => setValues({ token: e.target.value })}
+                />
+              </details>
+              <Button className="w-full" onClick={() => void submitModal()}>
+                <Link2 size={15} />
+                {values.token ? "Connect with key" : "Pair with local bridge"}
+              </Button>
             </details>
-            <Button className="w-full" onClick={() => void submitModal()}>
-              <Link2 size={15} />
-              {values.token ? "Connect with key" : "Pair with local bridge"}
-            </Button>
             {connected && (
               <Button
                 variant="ghost"

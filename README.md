@@ -1,8 +1,18 @@
 # Diffs Workbench
 
-An open-source, local-first Git workbench with a desktop-style interface. Review code with [Pierre's Diffs](https://diffs.com), switch between projects, and manage your local Git workflow from a browser.
+An open-source, local-first Git workbench with a desktop-style interface. Review code with [Pierre's Diffs](https://diffs.com), switch between projects, and manage your local Git workflow in a Mac app or browser.
 
-**[Open the app](https://diffs-workbench.vercel.app)** · [MIT license](LICENSE)
+**[Download for Mac](https://github.com/Davidkle/diffs-workbench/releases/latest)** · [Web preview](https://diffs-workbench.vercel.app) · [MIT license](LICENSE)
+
+## Get started on Mac
+
+1. Download the Apple Silicon Mac app from Releases and unzip it.
+2. Open **Diffs**.
+3. Click **Choose folder** and select a Git project.
+
+The app starts its local service automatically and remembers your projects. No Node.js installation, terminal, pairing key, or browser permissions are needed. Git must be installed; push and pull use your existing Git credentials.
+
+The first release is unsigned and not notarized by Apple, so macOS may block a downloaded copy. A Developer ID signed release is still needed for a warning-free public installation.
 
 ## Features
 
@@ -18,7 +28,7 @@ An open-source, local-first Git workbench with a desktop-style interface. Review
 - Commit all current changes with a message
 - Responsive desktop and mobile layouts
 
-## Local bridge
+## Browser setup (advanced)
 
 A hosted website cannot directly access your computer's Git repositories. The Vercel deployment serves only the interface; a small authenticated service on **127.0.0.1:43127** runs Git locally. Your source code is sent directly from that service to your browser, never through a Vercel API or cloud database.
 
@@ -72,6 +82,10 @@ Only pair with a deployment you trust: the paired interface can read and modify 
 npm ci
 npm run bridge -- /absolute/path/to/repo
 npm run dev
+# Or run the desktop app:
+npm run desktop
+# Build the Apple Silicon Mac app:
+npm run package:mac
 npm run ts-check
 npm run lint
 npm test
@@ -81,6 +95,7 @@ npm run build
 Stack: React 19, TypeScript, Vite, Tailwind CSS 4, shadcn-style components built with Radix primitives, Express, Zod, and `@pierre/diffs`.
 
 - `src/` — browser app, central API client, components, and styles
+- `desktop/` — Electron app, native folder picker, and restricted IPC
 - `bridge/` — local HTTP service and Git operations
 - `bridge/*.test.ts` — real temporary-repository integration tests
 
@@ -98,7 +113,7 @@ Vercel hosts the static `dist/` directory. The bridge is **not** deployed as a s
 - History is limited to the newest 150 commits. Git submodule contents are separate repositories.
 - Conflict controls choose entire current/incoming versions or let you manually edit a resolution; finish the merge with a commit.
 - Worktree and branch deletion use Git's safety checks (no force deletion).
-- Local filesystem access requires the bridge on the same computer. A phone can view the responsive preview but cannot access another computer's loopback service.
+- The Mac app includes the local service. Browser filesystem access requires the bridge on the same computer. A phone can view the responsive preview but cannot access another computer's loopback service.
 
 ## Contributing
 

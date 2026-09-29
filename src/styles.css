@@ -1592,3 +1592,44 @@ button svg {
     flex: 1;
   }
 }
+.desktop-download {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 17px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent);
+}
+.desktop-download strong {
+  font-size: 15px;
+  color: var(--foreground);
+}
+.desktop-download span {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.advanced-setup > summary {
+  margin-bottom: 16px;
+}
+.advanced-setup .connect-step {
+  margin-bottom: 18px;
+}
+.advanced-setup > button {
+  margin-top: 15px;
+}
+
+.welcome-project {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--muted-foreground);
+}
+.welcome-project h2 {
+  color: var(--foreground);
+  font-size: 20px;
+  font-weight: 600;
+}

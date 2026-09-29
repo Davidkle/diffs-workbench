@@ -7,7 +7,9 @@ import type {
 } from "@/types";
 const base = "http://127.0.0.1:43127";
 export function getToken() {
-  return sessionStorage.getItem("diffs-token") || "";
+  return window.diffsDesktop
+    ? "desktop"
+    : sessionStorage.getItem("diffs-token") || "";
 }
 export function setToken(token: string) {
   sessionStorage.setItem("diffs-token", token);
@@ -25,6 +27,8 @@ async function request<T>(
   method = "GET",
   body?: unknown,
 ): Promise<T> {
+  if (window.diffsDesktop)
+    return window.diffsDesktop.request<T>(route, method, body);
   let response: Response;
   try {
     response = await fetch(base + route, {
