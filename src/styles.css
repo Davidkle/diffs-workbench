@@ -1868,3 +1868,14 @@ button svg {
 .commit-row time {
   width: 74px;
 }
+
+.project-error-message {
+  max-width: 620px;
+  overflow-wrap: anywhere;
+}
+.project-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}

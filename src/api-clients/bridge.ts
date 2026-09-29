@@ -27,8 +27,11 @@ async function request<T>(
   method = "GET",
   body?: unknown,
 ): Promise<T> {
-  if (window.diffsDesktop)
-    return window.diffsDesktop.request<T>(route, method, body);
+  if (window.diffsDesktop) {
+    const result = await window.diffsDesktop.request<T>(route, method, body);
+    if (!result.ok) throw new Error(result.error);
+    return result.data;
+  }
   let response: Response;
   try {
     response = await fetch(base + route, {

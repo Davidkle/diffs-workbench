@@ -143,3 +143,29 @@ test("two selected commits compare exact endpoints, including non-adjacent chang
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("deleted project directories report recovery instructions and do not break other projects", async () => {
+  const removed = await fixture();
+  const healthy = await fixture();
+  await rm(removed, { recursive: true });
+  try {
+    const missing = { id: "removed", name: "removed", path: removed };
+    await assert.rejects(
+      snapshot(missing),
+      /Project folder is no longer available.*Open its new location/,
+    );
+    await assert.rejects(
+      git(removed, ["status"]),
+      /Project folder is no longer available/,
+    );
+    const state = await snapshot({
+      id: "healthy",
+      name: "healthy",
+      path: healthy,
+    });
+    assert.equal(state.branch, "main");
+    assert.equal(state.commits.length, 1);
+  } finally {
+    await rm(healthy, { recursive: true, force: true });
+  }
+});

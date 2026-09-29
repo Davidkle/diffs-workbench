@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { lstat, readFile, realpath, writeFile } from "node:fs/promises";
+import { lstat, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   ChangedFile,
@@ -11,6 +11,22 @@ import type {
   Worktree,
 } from "../src/types.js";
 const exec = promisify(execFile);
+export async function assertProjectDirectory(cwd: string) {
+  try {
+    if (!(await stat(cwd)).isDirectory()) throw new Error("Not a directory");
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "EACCES" || code === "EPERM")
+      throw new Error(
+        `Cannot access the project folder: ${cwd}. Check its permissions and try again.`,
+        { cause: error },
+      );
+    throw new Error(
+      `Project folder is no longer available: ${cwd}. It may have been moved or deleted. Open its new location or close this tab.`,
+      { cause: error },
+    );
+  }
+}
 export async function git(cwd: string, args: string[]) {
   try {
     return (
@@ -22,7 +38,14 @@ export async function git(cwd: string, args: string[]) {
       })
     ).stdout;
   } catch (error) {
-    const e = error as Error & { stderr?: string };
+    const e = error as NodeJS.ErrnoException & { stderr?: string };
+    if (e.code === "ENOENT") {
+      await assertProjectDirectory(cwd);
+      throw new Error(
+        "Git could not be found. Install Git or reopen Diffs after updating your Git installation.",
+        { cause: error },
+      );
+    }
     throw new Error(e.stderr?.trim() || e.message, { cause: error });
   }
 }
@@ -156,6 +179,7 @@ async function validateCommit(cwd: string, commit: string) {
 }
 export async function snapshot(project: Project): Promise<Snapshot> {
   const cwd = project.path;
+  await assertProjectDirectory(cwd);
   const [
     files,
     branch,

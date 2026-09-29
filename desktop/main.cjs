@@ -47,7 +47,7 @@ else {
         {
           env: {
             ...process.env,
-            PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH || "/usr/bin:/bin:/usr/sbin:/sbin"}`,
+            PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH || ""}:/usr/bin:/bin:/usr/sbin:/sbin`,
             DIFFS_PORT: String(port),
             DIFFS_DATA_DIR: dataDir,
             DIFFS_ALLOWED_ORIGINS: `http://127.0.0.1:${port}`,
@@ -90,19 +90,27 @@ else {
           !["GET", "POST", "DELETE"].includes(method)
         )
           throw new Error("Invalid request");
-        const response = await fetch(`http://127.0.0.1:${port}${route}`, {
-          method,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: body ? JSON.stringify(body) : undefined,
-          signal: AbortSignal.timeout(70000),
-        });
-        const result = await response.json();
-        if (!response.ok)
-          throw new Error(result.error || "Git operation failed");
-        return result;
+        try {
+          const response = await fetch(`http://127.0.0.1:${port}${route}`, {
+            method,
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: body ? JSON.stringify(body) : undefined,
+            signal: AbortSignal.timeout(70000),
+          });
+          const result = await response.json();
+          return response.ok
+            ? { ok: true, data: result }
+            : { ok: false, error: result.error || "Git operation failed" };
+        } catch {
+          return {
+            ok: false,
+            error:
+              "The Git service is unavailable. Quit and reopen Diffs, then try again.",
+          };
+        }
       });
       ipcMain.handle("choose-project", async (event) => {
         ownedFrame(event);
