@@ -1,0 +1,9 @@
+export type Project = { id: string; name: string; path: string };
+export type ChangedFile = { path: string; oldPath?: string; status: string; staged: boolean; conflict: boolean; additions: number; deletions: number };
+export type Commit = { hash: string; short: string; parents: string; author: string; date: string; subject: string; refs: string };
+export type Branch = { name: string; current: boolean; upstream: string; track: string };
+export type Worktree = { path: string; branch: string; head: string; locked: boolean };
+export type Stash = { ref: string; subject: string };
+export type Snapshot = { project: Project; branch: string; files: ChangedFile[]; branches: Branch[]; worktrees: Worktree[]; stashes: Stash[]; remotes: string[]; tags: string[]; commits: Commit[]; ahead: number; behind: number; sync?: string };
+export type FileContent = { path: string; old: string; current: string; binary: boolean; conflict: boolean; ours?: string; theirs?: string };
+export type Action = 'fetch' | 'pull' | 'push' | 'sync' | 'branch-create' | 'branch-switch' | 'branch-rename' | 'branch-delete' | 'worktree-create' | 'worktree-move' | 'worktree-remove' | 'stash-create' | 'stash-apply' | 'stash-pop' | 'stash-drop' | 'resolve' | 'commit';

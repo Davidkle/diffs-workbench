@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.vercel/
+.diffs/
+*.local
+*.tsbuildinfo
+.env*
+!.env.example
