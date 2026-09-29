@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { MultiFileDiff, File } from "@pierre/diffs/react";
+import { Virtualizer } from "@pierre/diffs/react";
+import { PreparedDiff } from "@/components/PreparedDiff";
 import {
   FileCode2,
   PanelLeft,
@@ -56,7 +57,7 @@ export function DiffPane({
       diffIndicators: "classic" as const,
       hunkSeparators: "line-info" as const,
       unsafeCSS:
-        ':host { --diffs-font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; --diffs-font-size: 12px; --diffs-line-height: 21px; } [data-code] { background: #222225; }',
+        ':host { --diffs-font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; --diffs-font-size: 14px; --diffs-line-height: 23px; } [data-code] { background: #222225; }',
     }),
     [split, full, wrap],
   );
@@ -124,7 +125,7 @@ export function DiffPane({
           </Button>
         </div>
       </div>
-      <div className="diff-content">
+      <Virtualizer className="diff-content" config={{ overscrollSize: 500 }}>
         {loading ? (
           <div className="empty">
             <span className="spinner" />
@@ -169,9 +170,8 @@ export function DiffPane({
                 Use entire incoming version
               </Button>
             </div>
-            <MultiFileDiff
-              oldFile={{ name: content.path, contents: content.ours || "" }}
-              newFile={{ name: content.path, contents: content.theirs || "" }}
+            <PreparedDiff
+              content={content}
               options={{
                 ...options,
                 diffStyle: "split",
@@ -192,19 +192,14 @@ export function DiffPane({
               </Button>
             </div>
           </>
-        ) : fileMode ? (
-          <File
-            file={{ name: content.path, contents: content.current }}
-            options={options}
-          />
         ) : (
-          <MultiFileDiff
-            oldFile={{ name: content.path, contents: content.old }}
-            newFile={{ name: content.path, contents: content.current }}
+          <PreparedDiff
+            content={content}
             options={options}
+            fileMode={fileMode}
           />
         )}
-      </div>
+      </Virtualizer>
     </section>
   );
 }

@@ -966,8 +966,8 @@ button svg {
   overflow: auto;
 }
 .diff-content diffs-container {
-  --diffs-font-size: 12px;
-  --diffs-line-height: 21px;
+  --diffs-font-size: 14px;
+  --diffs-line-height: 23px;
   display: block;
 }
 .empty {
@@ -1824,4 +1824,47 @@ button svg {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* Readable defaults across the workbench, including narrow windows. */
+.primary-nav button,
+.nav-row,
+.tree-row,
+.commit-row {
+  font-size: 14px;
+}
+.tree-row,
+.commit-row {
+  height: 29px;
+  min-height: 29px;
+}
+.project-tab,
+.toolbar .tool small,
+.section-header > button:first-child,
+.change-summary,
+.file-name,
+.file-filter input,
+.sidebar-filter input,
+.workspace-tabs > div:first-child > button {
+  font-size: 13px;
+}
+.history-heading,
+.history-heading .muted,
+.branch-label,
+.commit-row code,
+.commit-row time,
+.diff-controls button,
+.auto-sync,
+.files-footer,
+.file-filter > span {
+  font-size: 12px;
+}
+.commit-author {
+  width: 150px;
+}
+.commit-row code {
+  width: 64px;
+}
+.commit-row time {
+  width: 74px;
 }

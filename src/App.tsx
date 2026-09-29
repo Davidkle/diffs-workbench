@@ -46,6 +46,7 @@ import {
   setToken,
   capturePairingToken,
 } from "@/api-clients/bridge";
+import { ProjectCache } from "@/project-cache";
 import { demo, demoContent } from "@/demo";
 import type {
   Action,
@@ -101,7 +102,12 @@ function Section({
 }
 export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [active, setActive] = useState("");
+  const [active, setActive] = useState(
+    () => localStorage.getItem("diffs-active") || "",
+  );
+  const [loadingProject, setLoadingProject] = useState("");
+  const snapshots = useRef(new ProjectCache<Snapshot>());
+  const selectedFiles = useRef(new Map<string, string>());
   const [openIds, setOpenIds] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("diffs-tabs") || "[]");
@@ -144,7 +150,7 @@ export function App() {
   contentRef.current = content;
   const activeRef = useRef(active);
   activeRef.current = active;
-  const syncBusy = useRef(false);
+  const syncBusy = useRef(new Set<string>());
   const showModal = (value: Modal) => {
     setValues(
       Object.fromEntries(
@@ -231,7 +237,7 @@ export function App() {
     }
   }, [active, connected]);
   const refresh = useCallback(async (id: string) => {
-    const next = await bridge.snapshot(id);
+    const next = await snapshots.current.load(id, () => bridge.snapshot(id));
     if (activeRef.current === id) {
       setState(next);
       setRevision((n) => n + 1);
@@ -239,8 +245,8 @@ export function App() {
   }, []);
   const doSync = useCallback(
     async (id: string) => {
-      if (syncBusy.current) return;
-      syncBusy.current = true;
+      if (syncBusy.current.has(id)) return;
+      syncBusy.current.add(id);
       try {
         const result = await bridge.action(id, "sync");
         if (activeRef.current === id) {
@@ -250,22 +256,47 @@ export function App() {
       } catch (error) {
         if (activeRef.current === id) setSyncText((error as Error).message);
       } finally {
-        syncBusy.current = false;
+        syncBusy.current.delete(id);
       }
     },
     [refresh],
   );
   useEffect(() => {
     if (!connected || !active) return;
+    localStorage.setItem("diffs-active", active);
     setSelectedCommits([]);
     setView("changes");
-    setSelected("");
+    setMode("changes");
+    setFilter("");
     setContent(null);
-    setFiles([]);
-    setBusy("Loading project");
+    const cached = snapshots.current.get(active);
+    setSelected(selectedFiles.current.get(active) || "");
+    setFiles(cached?.files || []);
+    if (cached) setState(cached);
+    else {
+      const project = projects.find((p) => p.id === active);
+      setState({
+        ...demo,
+        project: project || { id: active, name: "Loading…", path: "" },
+        files: [],
+        commits: [],
+        branches: [],
+        worktrees: [],
+        stashes: [],
+        remotes: [],
+        tags: [],
+        ahead: 0,
+        behind: 0,
+      });
+    }
+    setLoadingProject(active);
     refresh(active)
-      .catch((e) => toast.error(e.message))
-      .finally(() => setBusy(""));
+      .catch((e) => {
+        if (activeRef.current === active) toast.error(e.message);
+      })
+      .finally(() => setLoadingProject((id) => (id === active ? "" : id)));
+    // Project metadata changes must not reset the current tab's selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, connected, refresh]);
   useEffect(() => {
     if (connected && active && autoSync) void doSync(active);
@@ -329,9 +360,10 @@ export function App() {
     };
   }, [connected, active, state, commit, comparisonBase, manyCommits, mode]);
   useEffect(() => {
-    if (!connected || !active) return;
+    if (!connected || !active || state.project.id !== active) return;
     let ignore = false;
     if (!selected || manyCommits) {
+      setFileLoading(false);
       setContent(null);
       return;
     }
@@ -342,7 +374,16 @@ export function App() {
       .then((next) => {
         if (!ignore)
           setContent((previous) =>
-            JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
+            previous &&
+            previous.path === next.path &&
+            previous.old === next.old &&
+            previous.current === next.current &&
+            previous.binary === next.binary &&
+            previous.conflict === next.conflict &&
+            previous.ours === next.ours &&
+            previous.theirs === next.theirs
+              ? previous
+              : next,
           );
       })
       .catch((e) => {
@@ -365,7 +406,17 @@ export function App() {
     comparisonBase,
     manyCommits,
     revision,
+    state.project.id,
   ]);
+  useEffect(() => {
+    if (
+      connected &&
+      active === state.project.id &&
+      selected &&
+      view === "changes"
+    )
+      selectedFiles.current.set(active, selected);
+  }, [connected, active, state.project.id, selected, view]);
   const requireConnection = () => {
     if (connected) return true;
     showModal({
@@ -416,7 +467,14 @@ export function App() {
   };
   const openProject = (id: string) => {
     setOpenIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setActive(id);
+    if (id !== active) {
+      activeRef.current = id;
+      setContent(null);
+      setSelected("");
+      setFiles([]);
+      setSelectedCommits([]);
+      setActive(id);
+    }
     setMobileNav(false);
   };
   const selectCommits = (ids: string[]) => {
@@ -995,7 +1053,13 @@ export function App() {
                 className={`project-tab ${p.id === active || !connected ? "active" : ""}`}
               >
                 <button onClick={() => openProject(p.id)}>
-                  <Folder size={13} />
+                  <>
+                    {loadingProject === p.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Folder size={13} />
+                    )}
+                  </>
                   {p.name}
                 </button>
                 <button

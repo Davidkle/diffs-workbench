@@ -281,7 +281,18 @@ export async function fileContent(
   base?: string,
 ): Promise<FileContent> {
   const target = await safeFile(cwd, name);
-  const files = await changedFiles(cwd, commit, base);
+  if (base && !commit) throw new Error("A target commit is required");
+  if (base) await validateCommit(cwd, base);
+  const files = commit
+    ? []
+    : parseStatus(
+        await git(cwd, [
+          "status",
+          "--porcelain=v1",
+          "-z",
+          "--untracked-files=all",
+        ]),
+      );
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
   const oldName = changed?.oldPath || name;
