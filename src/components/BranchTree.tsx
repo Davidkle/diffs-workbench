@@ -1,12 +1,21 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { usePersistentBoolean } from "@/use-persistent-boolean";
 import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import type { Branch } from "@/types";
 type Props = {
+  projectId: string;
+  filtering?: boolean;
   branches: Branch[];
   renderBranch: (branch: Branch) => ReactNode;
   prefix?: string;
 };
-export function BranchTree({ branches, renderBranch, prefix = "" }: Props) {
+export function BranchTree({
+  projectId,
+  filtering = false,
+  branches,
+  renderBranch,
+  prefix = "",
+}: Props) {
   const leaves = branches.filter(
     (branch) => !branch.name.slice(prefix.length).includes("/"),
   );
@@ -27,8 +36,16 @@ export function BranchTree({ branches, renderBranch, prefix = "" }: Props) {
         )
         .map(renderBranch)}
       {folders.map((folder) => (
-        <BranchFolder key={folder} name={folder}>
+        <BranchFolder
+          key={folder}
+          projectId={projectId}
+          path={`${prefix}${folder}`}
+          name={folder}
+          filtering={filtering}
+        >
           <BranchTree
+            projectId={projectId}
+            filtering={filtering}
             branches={branches.filter((branch) =>
               branch.name.startsWith(`${prefix}${folder}/`),
             )}
@@ -41,18 +58,29 @@ export function BranchTree({ branches, renderBranch, prefix = "" }: Props) {
   );
 }
 function BranchFolder({
+  projectId,
+  path,
+  filtering,
   name,
   children,
 }: {
+  projectId: string;
+  path: string;
+  filtering: boolean;
   name: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [savedOpen, setOpen] = usePersistentBoolean(
+    projectId,
+    "branches",
+    path,
+  );
+  const open = filtering || savedOpen;
   return (
     <div className="branch-folder">
       <button
         className="nav-row"
-        onClick={() => setOpen(!open)}
+        onClick={() => !filtering && setOpen(!open)}
         aria-expanded={open}
       >
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}

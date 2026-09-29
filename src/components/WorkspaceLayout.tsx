@@ -1,4 +1,4 @@
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
   ResizableHandle,
@@ -14,17 +14,47 @@ const subscribe = (notify: () => void) => {
 const getMobile = () => mobileQuery.matches;
 
 type Props = {
+  projectId: string;
   children: ReactNode;
   leading: ReactNode;
   kind: "repository" | "history" | "files";
 };
 
-export function WorkspaceLayout({ children, leading, kind }: Props) {
+export function WorkspaceLayout(props: Props) {
+  return <SavedWorkspaceLayout key={props.projectId} {...props} />;
+}
+function SavedWorkspaceLayout({ children, leading, kind, projectId }: Props) {
   const mobile = useSyncExternalStore(subscribe, getMobile);
+  // Keep existing panel widths as the initial layout for each project.
+  const storage = useMemo(
+    () => ({
+      getItem(key: string) {
+        try {
+          return (
+            localStorage.getItem(key) ??
+            localStorage.getItem(
+              key.replace(`diffs-layout-${projectId}-`, "diffs-layout-"),
+            )
+          );
+        } catch {
+          return null;
+        }
+      },
+      setItem(key: string, value: string) {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          /* Resizing remains usable. */
+        }
+      },
+    }),
+    [projectId],
+  );
   const leadingId = `${kind}-leading`;
   const contentId = `${kind}-content`;
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: `diffs-layout-${kind}-${mobile ? "compact" : "desktop"}`,
+    id: `diffs-layout-${projectId}-${kind}-${mobile ? "compact" : "desktop"}`,
+    storage,
     panelIds: leading ? [leadingId, contentId] : [contentId],
     onlySaveAfterUserInteractions: true,
   });
@@ -44,6 +74,7 @@ export function WorkspaceLayout({ children, leading, kind }: Props) {
   }[kind];
   return (
     <ResizablePanelGroup
+      key={`${mobile}-${!!leading}`}
       orientation={vertical ? "vertical" : "horizontal"}
       className={`layout-group layout-${kind}`}
       defaultLayout={defaultLayout}

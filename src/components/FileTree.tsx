@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { usePersistentBoolean } from "@/use-persistent-boolean";
 import {
   ChevronDown,
   ChevronRight,
@@ -14,11 +14,13 @@ type Node = {
   file?: ChangedFile;
 };
 export function FileTree({
+  projectId,
   files,
   selected,
   onSelect,
   filter,
 }: {
+  projectId: string;
   files: ChangedFile[];
   selected: string;
   onSelect: (path: string) => void;
@@ -46,6 +48,8 @@ export function FileTree({
       {[...root.children.values()].sort(sortNodes).map((node) => (
         <TreeNode
           key={node.path}
+          projectId={projectId}
+          filtering={!!filter.trim()}
           node={node}
           depth={0}
           selected={selected}
@@ -59,17 +63,26 @@ function sortNodes(a: Node, b: Node) {
   return Number(!!a.file) - Number(!!b.file) || a.name.localeCompare(b.name);
 }
 function TreeNode({
+  projectId,
+  filtering,
   node,
   depth,
   selected,
   onSelect,
 }: {
+  projectId: string;
+  filtering: boolean;
   node: Node;
   depth: number;
   selected: string;
   onSelect: (path: string) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [savedOpen, setOpen] = usePersistentBoolean(
+    projectId,
+    "files",
+    node.path,
+  );
+  const open = filtering || savedOpen;
   const isFolder = !node.file;
   return (
     <div
@@ -80,7 +93,9 @@ function TreeNode({
       <button
         className={`tree-row ${selected === node.path ? "selected" : ""}`}
         style={{ paddingLeft: 12 + depth * 16 }}
-        onClick={() => (isFolder ? setOpen(!open) : onSelect(node.path))}
+        onClick={() =>
+          isFolder ? !filtering && setOpen(!open) : onSelect(node.path)
+        }
         title={node.path}
       >
         {isFolder ? (
@@ -108,6 +123,8 @@ function TreeNode({
           {[...node.children.values()].sort(sortNodes).map((child) => (
             <TreeNode
               key={child.path}
+              projectId={projectId}
+              filtering={filtering}
               node={child}
               depth={depth + 1}
               selected={selected}

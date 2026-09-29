@@ -46,6 +46,7 @@ import {
   setToken,
   capturePairingToken,
 } from "@/api-clients/bridge";
+import { usePersistentBoolean } from "@/use-persistent-boolean";
 import { ProjectCache } from "@/project-cache";
 import { demo, demoContent } from "@/demo";
 import type {
@@ -76,21 +77,23 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join("");
 function Section({
+  projectId,
   title,
   icon,
   children,
   action,
 }: {
+  projectId: string;
   title: string;
   icon?: ReactNode;
   children: ReactNode;
   action?: ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = usePersistentBoolean(projectId, "sections", title);
   return (
     <section className="nav-section">
       <div className="section-header">
-        <button onClick={() => setOpen(!open)}>
+        <button aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {icon}
           <span>{title}</span>
         </button>
@@ -144,7 +147,11 @@ export function App() {
     () => localStorage.getItem("diffs-auto-sync") !== "false",
   );
   const [mobileNav, setMobileNav] = useState(false);
-  const [showHistory, setShowHistory] = useState(true);
+  const [showHistory, setShowHistory] = usePersistentBoolean(
+    active || "preview",
+    "panels",
+    "history",
+  );
   const [view, setView] = useState<"changes" | "history">("changes");
   const [modal, setModal] = useState<Modal | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -620,6 +627,7 @@ export function App() {
     <div className="app-shell">
       <Toaster theme="dark" position="bottom-right" richColors closeButton />
       <WorkspaceLayout
+        projectId={active || "preview"}
         kind="repository"
         leading={
           <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
@@ -684,7 +692,6 @@ export function App() {
                 className={view === "history" ? "active" : ""}
                 onClick={() => {
                   setView("history");
-                  setShowHistory(true);
                   if (state.commits[0]) selectCommit(state.commits[0].hash);
                 }}
               >
@@ -709,6 +716,7 @@ export function App() {
             </div>
             <div className="sidebar-scroll">
               <Section
+                projectId={active || "preview"}
                 title="Worktrees"
                 action={
                   <button
@@ -807,6 +815,7 @@ export function App() {
                   ))}
               </Section>
               <Section
+                projectId={active || "preview"}
                 title="Branches"
                 action={
                   <button
@@ -833,6 +842,8 @@ export function App() {
                 }
               >
                 <BranchTree
+                  projectId={active || "preview"}
+                  filtering={!!navFilter.trim()}
                   branches={state.branches.filter((b) =>
                     b.name.toLowerCase().includes(navFilter.toLowerCase()),
                   )}
@@ -904,7 +915,7 @@ export function App() {
                   )}
                 />
               </Section>
-              <Section title="Remotes">
+              <Section projectId={active || "preview"} title="Remotes">
                 {state.remotes.map((r) => (
                   <button
                     className="nav-row"
@@ -920,7 +931,7 @@ export function App() {
                   <div className="nav-empty">No remotes configured</div>
                 )}
               </Section>
-              <Section title="Tags">
+              <Section projectId={active || "preview"} title="Tags">
                 {state.tags.length ? (
                   state.tags.map((t) => (
                     <div className="nav-row" key={t}>
@@ -933,6 +944,7 @@ export function App() {
                 )}
               </Section>
               <Section
+                projectId={active || "preview"}
                 title="Stashes"
                 action={
                   <button
@@ -1175,6 +1187,7 @@ export function App() {
             </div>
           ) : (
             <WorkspaceLayout
+              projectId={active || "preview"}
               kind="history"
               leading={
                 showHistory && view === "history" ? (
@@ -1365,6 +1378,7 @@ export function App() {
                 </div>
               ) : (
                 <WorkspaceLayout
+                  projectId={active || "preview"}
                   kind="files"
                   leading={
                     <aside className="files-pane">
@@ -1380,6 +1394,7 @@ export function App() {
                       </div>
                       <div className="files-scroll">
                         <FileTree
+                          projectId={active || "preview"}
                           files={files}
                           selected={selected}
                           onSelect={selectFile}
