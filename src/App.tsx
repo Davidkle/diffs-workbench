@@ -37,6 +37,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Dropdown } from "@/components/ui/dropdown-menu";
 import { BranchTree } from "@/components/BranchTree";
 import { FileTree } from "@/components/FileTree";
+import { WorkspaceLayout } from "@/components/WorkspaceLayout";
 import { DiffPane } from "@/components/DiffPane";
 import {
   bridge,
@@ -488,303 +489,429 @@ export function App() {
   return (
     <div className="app-shell">
       <Toaster theme="dark" position="bottom-right" richColors closeButton />
-      <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
-        <div className="project-heading">
-          <span>{state.project.name}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="mobile-close"
-            onClick={() => setMobileNav(false)}
-            aria-label="Close navigation"
-          >
-            <X size={16} />
-          </Button>
-          <Dropdown
-            trigger={
-              <button className="icon-button" aria-label="Project settings">
-                <MoreHorizontal size={17} />
-              </button>
-            }
-            items={[
-              { label: "Open repository…", onSelect: openDialog },
-              ...(window.diffsDesktop
-                ? []
-                : [
-                    {
-                      label: "Connect local bridge…",
-                      onSelect: () =>
-                        showModal({
-                          kind: "connect",
-                          title: "Connect your computer",
-                          description:
-                            "Open your local projects in the Mac app.",
-                        }),
+      <WorkspaceLayout
+        kind="repository"
+        leading={
+          <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
+            <div className="project-heading">
+              <span>{state.project.name}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mobile-close"
+                onClick={() => setMobileNav(false)}
+                aria-label="Close navigation"
+              >
+                <X size={16} />
+              </Button>
+              <Dropdown
+                trigger={
+                  <button className="icon-button" aria-label="Project settings">
+                    <MoreHorizontal size={17} />
+                  </button>
+                }
+                items={[
+                  { label: "Open repository…", onSelect: openDialog },
+                  ...(window.diffsDesktop
+                    ? []
+                    : [
+                        {
+                          label: "Connect local bridge…",
+                          onSelect: () =>
+                            showModal({
+                              kind: "connect",
+                              title: "Connect your computer",
+                              description:
+                                "Open your local projects in the Mac app.",
+                            }),
+                        },
+                      ]),
+                  {
+                    label: "Close project tab",
+                    disabled: !active,
+                    onSelect: () => {
+                      const remaining = openIds.filter((id) => id !== active);
+                      setOpenIds(remaining);
+                      setActive(remaining[0] || "");
                     },
-                  ]),
-              {
-                label: "Close project tab",
-                disabled: !active,
-                onSelect: () => {
-                  const remaining = openIds.filter((id) => id !== active);
-                  setOpenIds(remaining);
-                  setActive(remaining[0] || "");
-                },
-              },
-            ]}
-          />
-        </div>
-        <nav className="primary-nav">
-          <button
-            className={!commit ? "active" : ""}
-            onClick={() => selectCommit()}
-          >
-            <FileDiff size={16} />
-            <span>Local Changes</span>
-            <span className="count">{changedCount}</span>
-          </button>
-          <button
-            className={commit ? "active" : ""}
-            onClick={() => {
-              setShowHistory(true);
-              if (state.commits[0]) selectCommit(state.commits[0].hash);
-            }}
-          >
-            <History size={16} />
-            <span>All Commits</span>
-          </button>
-        </nav>
-        <div className="sidebar-switch">
-          <GitBranch size={16} />
-          <span>Repository</span>
-          <span className="flex-1" />
-          <Search size={14} />
-        </div>
-        <div className="sidebar-filter">
-          <Search size={13} />
-          <input
-            aria-label="Filter branches and worktrees"
-            placeholder="Filter"
-            value={navFilter}
-            onChange={(e) => setNavFilter(e.target.value)}
-          />
-        </div>
-        <div className="sidebar-scroll">
-          <Section
-            title="Worktrees"
-            action={
+                  },
+                ]}
+              />
+            </div>
+            <nav className="primary-nav">
               <button
-                className="section-add"
-                aria-label="Create worktree"
-                onClick={() =>
-                  actionModal(
-                    "Create worktree",
-                    "worktree-create",
-                    [
-                      {
-                        key: "name",
-                        label: "New branch",
-                        placeholder: "feat/my-feature",
-                      },
-                      {
-                        key: "path",
-                        label: "New directory",
-                        placeholder: "/Users/you/projects/my-feature",
-                      },
-                    ],
-                    {},
-                    "Create a separate checkout on a new branch.",
-                  )
+                className={!commit ? "active" : ""}
+                onClick={() => selectCommit()}
+              >
+                <FileDiff size={16} />
+                <span>Local Changes</span>
+                <span className="count">{changedCount}</span>
+              </button>
+              <button
+                className={commit ? "active" : ""}
+                onClick={() => {
+                  setShowHistory(true);
+                  if (state.commits[0]) selectCommit(state.commits[0].hash);
+                }}
+              >
+                <History size={16} />
+                <span>All Commits</span>
+              </button>
+            </nav>
+            <div className="sidebar-switch">
+              <GitBranch size={16} />
+              <span>Repository</span>
+              <span className="flex-1" />
+              <Search size={14} />
+            </div>
+            <div className="sidebar-filter">
+              <Search size={13} />
+              <input
+                aria-label="Filter branches and worktrees"
+                placeholder="Filter"
+                value={navFilter}
+                onChange={(e) => setNavFilter(e.target.value)}
+              />
+            </div>
+            <div className="sidebar-scroll">
+              <Section
+                title="Worktrees"
+                action={
+                  <button
+                    className="section-add"
+                    aria-label="Create worktree"
+                    onClick={() =>
+                      actionModal(
+                        "Create worktree",
+                        "worktree-create",
+                        [
+                          {
+                            key: "name",
+                            label: "New branch",
+                            placeholder: "feat/my-feature",
+                          },
+                          {
+                            key: "path",
+                            label: "New directory",
+                            placeholder: "/Users/you/projects/my-feature",
+                          },
+                        ],
+                        {},
+                        "Create a separate checkout on a new branch.",
+                      )
+                    }
+                  >
+                    <Plus size={13} />
+                  </button>
                 }
               >
-                <Plus size={13} />
-              </button>
-            }
-          >
-            {state.worktrees
-              .filter((w) =>
-                w.path.toLowerCase().includes(navFilter.toLowerCase()),
-              )
-              .map((w) => (
-                <div className="nav-row-group" key={w.path}>
+                {state.worktrees
+                  .filter((w) =>
+                    w.path.toLowerCase().includes(navFilter.toLowerCase()),
+                  )
+                  .map((w) => (
+                    <div className="nav-row-group" key={w.path}>
+                      <button
+                        className="nav-row"
+                        title={w.path}
+                        onClick={() => {
+                          if (!requireConnection()) return;
+                          bridge
+                            .add(w.path)
+                            .then(async (p) => {
+                              setProjects(await bridge.projects());
+                              openProject(p.id);
+                            })
+                            .catch((e) => toast.error(e.message));
+                        }}
+                      >
+                        <Folder size={14} />
+                        <span>{w.path.split("/").pop()}</span>
+                        {w.path === state.project.path && (
+                          <span className="current-dot" />
+                        )}
+                      </button>
+                      <Dropdown
+                        trigger={
+                          <button
+                            className="row-menu"
+                            aria-label={`Manage worktree ${w.path.split("/").pop()}`}
+                          >
+                            <MoreHorizontal size={13} />
+                          </button>
+                        }
+                        items={[
+                          {
+                            label: "Move worktree…",
+                            disabled: w.path === state.project.path,
+                            onSelect: () =>
+                              actionModal(
+                                "Move worktree",
+                                "worktree-move",
+                                [{ key: "path", label: "New path" }],
+                                { from: w.path },
+                                "The worktree will be moved to the new directory.",
+                              ),
+                          },
+                          {
+                            label: "Remove worktree…",
+                            danger: true,
+                            disabled: w.path === state.project.path,
+                            onSelect: () =>
+                              actionModal(
+                                "Remove worktree?",
+                                "worktree-remove",
+                                [],
+                                { from: w.path },
+                                "Remove this checkout. Git will refuse if it contains unsaved changes.",
+                                true,
+                              ),
+                          },
+                        ]}
+                      />
+                    </div>
+                  ))}
+              </Section>
+              <Section
+                title="Branches"
+                action={
+                  <button
+                    className="section-add"
+                    aria-label="Create branch"
+                    onClick={() =>
+                      actionModal(
+                        "Create branch",
+                        "branch-create",
+                        [
+                          {
+                            key: "name",
+                            label: "Branch name",
+                            placeholder: "feat/my-feature",
+                          },
+                        ],
+                        {},
+                        "Create and switch to a branch from the current HEAD.",
+                      )
+                    }
+                  >
+                    <Plus size={13} />
+                  </button>
+                }
+              >
+                <BranchTree
+                  branches={state.branches.filter((b) =>
+                    b.name.toLowerCase().includes(navFilter.toLowerCase()),
+                  )}
+                  renderBranch={(b) => (
+                    <div className="nav-row-group" key={b.name}>
+                      <button
+                        className={`nav-row ${b.current ? "current" : ""}`}
+                        onClick={() => run("branch-switch", { name: b.name })}
+                      >
+                        {b.current ? (
+                          <Check size={14} />
+                        ) : (
+                          <GitBranch size={14} />
+                        )}
+                        <span title={b.name}>{b.name.split("/").pop()}</span>
+                        {b.current && state.ahead > 0 && (
+                          <small>{state.ahead}↑</small>
+                        )}
+                      </button>
+                      <Dropdown
+                        trigger={
+                          <button
+                            className="row-menu"
+                            aria-label={`Manage branch ${b.name}`}
+                          >
+                            <MoreHorizontal size={13} />
+                          </button>
+                        }
+                        items={[
+                          {
+                            label: "Checkout branch",
+                            disabled: b.current,
+                            onSelect: () =>
+                              run("branch-switch", { name: b.name }),
+                          },
+                          {
+                            label: "Rename…",
+                            onSelect: () =>
+                              actionModal(
+                                "Rename branch",
+                                "branch-rename",
+                                [
+                                  {
+                                    key: "name",
+                                    label: "New name",
+                                    value: b.name,
+                                  },
+                                ],
+                                { from: b.name },
+                              ),
+                          },
+                          {
+                            label: "Delete branch…",
+                            danger: true,
+                            disabled: b.current,
+                            onSelect: () =>
+                              actionModal(
+                                "Delete branch?",
+                                "branch-delete",
+                                [],
+                                { name: b.name },
+                                `Delete ${b.name}. Unmerged branches are protected.`,
+                                true,
+                              ),
+                          },
+                        ]}
+                      />
+                    </div>
+                  )}
+                />
+              </Section>
+              <Section title="Remotes">
+                {state.remotes.map((r) => (
                   <button
                     className="nav-row"
-                    title={w.path}
-                    onClick={() => {
-                      if (!requireConnection()) return;
-                      bridge
-                        .add(w.path)
-                        .then(async (p) => {
-                          setProjects(await bridge.projects());
-                          openProject(p.id);
-                        })
-                        .catch((e) => toast.error(e.message));
-                    }}
+                    key={r}
+                    onClick={() => run("fetch")}
                   >
-                    <Folder size={14} />
-                    <span>{w.path.split("/").pop()}</span>
-                    {w.path === state.project.path && (
-                      <span className="current-dot" />
-                    )}
+                    <ChevronRight size={11} />
+                    <Github size={14} />
+                    <span>{r}</span>
                   </button>
-                  <Dropdown
-                    trigger={
-                      <button
-                        className="row-menu"
-                        aria-label={`Manage worktree ${w.path.split("/").pop()}`}
-                      >
-                        <MoreHorizontal size={13} />
-                      </button>
+                ))}
+                {!state.remotes.length && (
+                  <div className="nav-empty">No remotes configured</div>
+                )}
+              </Section>
+              <Section title="Tags">
+                {state.tags.length ? (
+                  state.tags.map((t) => (
+                    <div className="nav-row" key={t}>
+                      <Tag size={13} />
+                      <span>{t}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="nav-empty">No tags yet</div>
+                )}
+              </Section>
+              <Section
+                title="Stashes"
+                action={
+                  <button
+                    className="section-add"
+                    aria-label="Create stash"
+                    onClick={() =>
+                      actionModal(
+                        "Stash local changes",
+                        "stash-create",
+                        [
+                          {
+                            key: "name",
+                            label: "Message",
+                            placeholder: "Work in progress",
+                          },
+                        ],
+                        {},
+                        "Save tracked and untracked changes, then clean the working tree.",
+                      )
                     }
-                    items={[
-                      {
-                        label: "Move worktree…",
-                        disabled: w.path === state.project.path,
-                        onSelect: () =>
-                          actionModal(
-                            "Move worktree",
-                            "worktree-move",
-                            [{ key: "path", label: "New path" }],
-                            { from: w.path },
-                            "The worktree will be moved to the new directory.",
-                          ),
-                      },
-                      {
-                        label: "Remove worktree…",
-                        danger: true,
-                        disabled: w.path === state.project.path,
-                        onSelect: () =>
-                          actionModal(
-                            "Remove worktree?",
-                            "worktree-remove",
-                            [],
-                            { from: w.path },
-                            "Remove this checkout. Git will refuse if it contains unsaved changes.",
-                            true,
-                          ),
-                      },
-                    ]}
-                  />
-                </div>
-              ))}
-          </Section>
-          <Section
-            title="Branches"
-            action={
-              <button
-                className="section-add"
-                aria-label="Create branch"
-                onClick={() =>
-                  actionModal(
-                    "Create branch",
-                    "branch-create",
-                    [
-                      {
-                        key: "name",
-                        label: "Branch name",
-                        placeholder: "feat/my-feature",
-                      },
-                    ],
-                    {},
-                    "Create and switch to a branch from the current HEAD.",
-                  )
+                  >
+                    <Plus size={13} />
+                  </button>
                 }
               >
-                <Plus size={13} />
-              </button>
-            }
-          >
-            <BranchTree
-              branches={state.branches.filter((b) =>
-                b.name.toLowerCase().includes(navFilter.toLowerCase()),
-              )}
-              renderBranch={(b) => (
-                <div className="nav-row-group" key={b.name}>
-                  <button
-                    className={`nav-row ${b.current ? "current" : ""}`}
-                    onClick={() => run("branch-switch", { name: b.name })}
-                  >
-                    {b.current ? <Check size={14} /> : <GitBranch size={14} />}
-                    <span title={b.name}>{b.name.split("/").pop()}</span>
-                    {b.current && state.ahead > 0 && (
-                      <small>{state.ahead}↑</small>
-                    )}
-                  </button>
-                  <Dropdown
-                    trigger={
-                      <button
-                        className="row-menu"
-                        aria-label={`Manage branch ${b.name}`}
-                      >
-                        <MoreHorizontal size={13} />
-                      </button>
-                    }
-                    items={[
-                      {
-                        label: "Checkout branch",
-                        disabled: b.current,
-                        onSelect: () => run("branch-switch", { name: b.name }),
-                      },
-                      {
-                        label: "Rename…",
-                        onSelect: () =>
-                          actionModal(
-                            "Rename branch",
-                            "branch-rename",
-                            [{ key: "name", label: "New name", value: b.name }],
-                            { from: b.name },
-                          ),
-                      },
-                      {
-                        label: "Delete branch…",
-                        danger: true,
-                        disabled: b.current,
-                        onSelect: () =>
-                          actionModal(
-                            "Delete branch?",
-                            "branch-delete",
-                            [],
-                            { name: b.name },
-                            `Delete ${b.name}. Unmerged branches are protected.`,
-                            true,
-                          ),
-                      },
-                    ]}
-                  />
-                </div>
-              )}
-            />
-          </Section>
-          <Section title="Remotes">
-            {state.remotes.map((r) => (
-              <button className="nav-row" key={r} onClick={() => run("fetch")}>
-                <ChevronRight size={11} />
-                <Github size={14} />
-                <span>{r}</span>
-              </button>
-            ))}
-            {!state.remotes.length && (
-              <div className="nav-empty">No remotes configured</div>
-            )}
-          </Section>
-          <Section title="Tags">
-            {state.tags.length ? (
-              state.tags.map((t) => (
-                <div className="nav-row" key={t}>
-                  <Tag size={13} />
-                  <span>{t}</span>
-                </div>
-              ))
-            ) : (
-              <div className="nav-empty">No tags yet</div>
-            )}
-          </Section>
-          <Section
-            title="Stashes"
-            action={
-              <button
-                className="section-add"
-                aria-label="Create stash"
+                {state.stashes.length ? (
+                  state.stashes.map((stash) => (
+                    <div className="nav-row-group" key={stash.ref}>
+                      <span className="nav-row" title={stash.subject}>
+                        <Archive size={13} />
+                        <span>{stash.subject}</span>
+                      </span>
+                      <Dropdown
+                        trigger={
+                          <button
+                            className="row-menu"
+                            aria-label={`Manage ${stash.ref}`}
+                          >
+                            <MoreHorizontal size={14} />
+                          </button>
+                        }
+                        items={[
+                          {
+                            label: "Apply (keep stash)",
+                            onSelect: () =>
+                              run("stash-apply", { name: stash.ref }),
+                          },
+                          {
+                            label: "Pop (apply & remove)",
+                            onSelect: () =>
+                              run("stash-pop", { name: stash.ref }),
+                          },
+                          {
+                            label: "Delete stash…",
+                            danger: true,
+                            onSelect: () =>
+                              actionModal(
+                                "Delete stash?",
+                                "stash-drop",
+                                [],
+                                { name: stash.ref },
+                                "This permanently removes the saved stash.",
+                                true,
+                              ),
+                          },
+                        ]}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <div className="nav-empty">No stashed changes</div>
+                )}
+              </Section>
+            </div>
+          </aside>
+        }
+      >
+        <main className="main">
+          <header className="toolbar">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mobile-menu"
+              onClick={() => setMobileNav(true)}
+              aria-label="Open navigation"
+            >
+              <Menu size={18} />
+            </Button>
+            <div className="toolbar-actions">
+              <Tool icon={<FolderOpen />} label="Open" onClick={openDialog} />
+              <span className="toolbar-divider" />
+              <Tool
+                icon={<RefreshCw />}
+                label="Fetch"
+                onClick={() => run("fetch")}
+                disabled={!!busy}
+              />
+              <Tool
+                icon={<ArrowDown />}
+                label="Pull"
+                onClick={() => run("pull")}
+                disabled={!!busy}
+              />
+              <Tool
+                icon={<ArrowUp />}
+                label="Push"
+                badge={state.ahead}
+                onClick={() => run("push")}
+                disabled={!!busy}
+              />
+              <Tool
+                icon={<Archive />}
+                label="Stash"
                 onClick={() =>
                   actionModal(
                     "Stash local changes",
@@ -797,486 +924,378 @@ export function App() {
                       },
                     ],
                     {},
-                    "Save tracked and untracked changes, then clean the working tree.",
+                    "Includes untracked files. Your changes can be restored from the sidebar.",
                   )
                 }
-              >
-                <Plus size={13} />
-              </button>
-            }
-          >
-            {state.stashes.length ? (
-              state.stashes.map((stash) => (
-                <div className="nav-row-group" key={stash.ref}>
-                  <span className="nav-row" title={stash.subject}>
-                    <Archive size={13} />
-                    <span>{stash.subject}</span>
-                  </span>
-                  <Dropdown
-                    trigger={
-                      <button
-                        className="row-menu"
-                        aria-label={`Manage ${stash.ref}`}
-                      >
-                        <MoreHorizontal size={14} />
-                      </button>
-                    }
-                    items={[
-                      {
-                        label: "Apply (keep stash)",
-                        onSelect: () => run("stash-apply", { name: stash.ref }),
-                      },
-                      {
-                        label: "Pop (apply & remove)",
-                        onSelect: () => run("stash-pop", { name: stash.ref }),
-                      },
-                      {
-                        label: "Delete stash…",
-                        danger: true,
-                        onSelect: () =>
-                          actionModal(
-                            "Delete stash?",
-                            "stash-drop",
-                            [],
-                            { name: stash.ref },
-                            "This permanently removes the saved stash.",
-                            true,
-                          ),
-                      },
-                    ]}
-                  />
-                </div>
-              ))
-            ) : (
-              <div className="nav-empty">No stashed changes</div>
-            )}
-          </Section>
-        </div>
-      </aside>
-      <main className="main">
-        <header className="toolbar">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="mobile-menu"
-            onClick={() => setMobileNav(true)}
-            aria-label="Open navigation"
-          >
-            <Menu size={18} />
-          </Button>
-          <div className="toolbar-actions">
-            <Tool icon={<FolderOpen />} label="Open" onClick={openDialog} />
-            <span className="toolbar-divider" />
-            <Tool
-              icon={<RefreshCw />}
-              label="Fetch"
-              onClick={() => run("fetch")}
-              disabled={!!busy}
-            />
-            <Tool
-              icon={<ArrowDown />}
-              label="Pull"
-              onClick={() => run("pull")}
-              disabled={!!busy}
-            />
-            <Tool
-              icon={<ArrowUp />}
-              label="Push"
-              badge={state.ahead}
-              onClick={() => run("push")}
-              disabled={!!busy}
-            />
-            <Tool
-              icon={<Archive />}
-              label="Stash"
-              onClick={() =>
-                actionModal(
-                  "Stash local changes",
-                  "stash-create",
-                  [
+                disabled={!!busy}
+              />
+            </div>
+            <div className="toolbar-right">
+              <Tool
+                icon={<GitBranch />}
+                label="Branch"
+                onClick={() =>
+                  actionModal("Create branch", "branch-create", [
                     {
                       key: "name",
-                      label: "Message",
-                      placeholder: "Work in progress",
+                      label: "Branch name",
+                      placeholder: "feat/my-feature",
                     },
-                  ],
-                  {},
-                  "Includes untracked files. Your changes can be restored from the sidebar.",
-                )
-              }
-              disabled={!!busy}
-            />
-          </div>
-          <Dropdown
-            trigger={
-              <button className="repository-selector">
-                <span>{state.project.name}</span>
-                <small>
-                  <GitBranch size={12} />
-                  {state.branch}
-                  <ChevronDown size={12} />
-                </small>
-              </button>
-            }
-            items={
-              connected
-                ? projects.map((p) => ({
-                    label: p.name,
-                    onSelect: () => openProject(p.id),
-                  }))
-                : [
-                    {
-                      label: "Connect local repositories…",
-                      onSelect: () => requireConnection(),
-                    },
-                  ]
-            }
-          />
-          <div className="toolbar-right">
-            <Tool
-              icon={<GitBranch />}
-              label="Branch"
-              onClick={() =>
-                actionModal("Create branch", "branch-create", [
-                  {
-                    key: "name",
-                    label: "Branch name",
-                    placeholder: "feat/my-feature",
-                  },
-                ])
-              }
-            />
-            <span className="flex-1" />
-          </div>
-        </header>
-        <div className="project-tabs">
-          {(connected
-            ? projects.filter((p) => openIds.includes(p.id))
-            : [demo.project]
-          ).map((p) => (
-            <div
-              key={p.id}
-              className={`project-tab ${p.id === active || !connected ? "active" : ""}`}
-            >
-              <button onClick={() => openProject(p.id)}>
-                <Folder size={13} />
-                {p.name}
-              </button>
-              <button
-                className="tab-close"
-                aria-label={`Close ${p.name} tab`}
-                onClick={() => {
-                  const remaining = openIds.filter((id) => id !== p.id);
-                  setOpenIds(remaining);
-                  if (active === p.id) {
-                    if (remaining[0]) setActive(remaining[0]);
-                    else {
-                      setActive("");
-                      setFiles([]);
-                      setContent(null);
-                    }
-                  }
-                }}
+                  ])
+                }
+              />
+            </div>
+          </header>
+          <div className="project-tabs">
+            {(connected
+              ? projects.filter((p) => openIds.includes(p.id))
+              : [demo.project]
+            ).map((p) => (
+              <div
+                key={p.id}
+                className={`project-tab ${p.id === active || !connected ? "active" : ""}`}
               >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-          <Dropdown
-            trigger={
-              <button className="add-tab" aria-label="Open project tab">
-                <Plus size={17} />
-              </button>
-            }
-            items={[
-              ...projects.map((p) => ({
-                label: p.name,
-                onSelect: () => openProject(p.id),
-              })),
-              { label: "Open repository…", onSelect: openDialog },
-            ]}
-          />
-        </div>
-        {!connected && (
-          <div className="demo-banner">
-            <div>
-              <span className="example-dot" />
-              Preview workspace{" "}
-              <span className="demo-description">
-                Connect your computer to start reviewing local code.
-              </span>
-            </div>
-            <button onClick={() => requireConnection()}>
-              Connect local bridge <ArrowUp size={12} className="rotate-45" />
-            </button>
-          </div>
-        )}
-        {showHistory && (
-          <section className="history">
-            <div className="history-heading">
-              <span>
-                <GitCommitHorizontal size={14} />
-                Commit history{" "}
-                <span className="muted">
-                  {state.commits.length}
-                  {state.commits.length === 150 ? "+" : ""}
-                </span>
-              </span>
-              <button
-                aria-label="Collapse commit history"
-                onClick={() => setShowHistory(false)}
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
-            <div className="commit-list">
-              {state.commits.map((c, i) => (
-                <button
-                  className={`commit-row ${commit === c.hash ? "selected" : ""}`}
-                  key={c.hash}
-                  onClick={() => selectCommit(c.hash)}
-                >
-                  <span className={`graph-node graph-${i % 3}`}>
-                    <span />
-                  </span>
-                  <span className="commit-subject">
-                    {c.refs && (
-                      <span className="branch-label" title={c.refs}>
-                        <GitBranch size={10} />
-                        {c.refs.includes("HEAD")
-                          ? state.branch
-                          : c.refs.split(",")[0]}
-                      </span>
-                    )}
-                    {c.subject}
-                  </span>
-                  <span className="commit-author">
-                    <span className="avatar">{initials(c.author)}</span>
-                    {c.author}
-                  </span>
-                  <code>{c.short}</code>
-                  <time title={c.date}>
-                    {new Date(c.date).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </time>
+                <button onClick={() => openProject(p.id)}>
+                  <Folder size={13} />
+                  {p.name}
                 </button>
-              ))}
-              {!state.commits.length && (
-                <div className="history-empty">
-                  No commits yet. Your local changes appear below.
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-        <div className="workspace-tabs">
-          <div>
-            {(["commit", "changes", "tree"] as const).map((tab) => (
-              <button
-                key={tab}
-                className={mode === tab ? "selected" : ""}
-                onClick={() => setMode(tab)}
-              >
-                {tab === "commit"
-                  ? "Commit"
-                  : tab === "changes"
-                    ? "Changes"
-                    : "File Tree"}
-                {tab === "changes" && <span>{files.length}</span>}
-              </button>
-            ))}
-          </div>
-          <div className="workspace-options">
-            {!showHistory && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowHistory(true)}
-              >
-                <History size={14} />
-                History
-              </Button>
-            )}
-            <span className="diff-stat add">+{additions}</span>
-            <span className="diff-stat remove">−{deletions}</span>
-            <span className="separator" />
-            <label className="auto-sync">
-              <Switch.Root
-                checked={autoSync}
-                onCheckedChange={setAutoSync}
-                className="switch"
-                aria-label="Auto sync"
-              >
-                <Switch.Thumb className="switch-thumb" />
-              </Switch.Root>
-              Auto sync
-            </label>
-          </div>
-        </div>
-        <div className="change-summary">
-          {currentCommit ? (
-            <>
-              <span className="avatar">{initials(currentCommit.author)}</span>
-              <strong>{currentCommit.author}</strong>
-              <code>{currentCommit.short}</code>
-              <span className="summary-message">{currentCommit.subject}</span>
-            </>
-          ) : (
-            <>
-              <span className="working-dot" />
-              <strong>
-                {active
-                  ? "Working directory"
-                  : "Choose a project to get started"}
-              </strong>
-              <span className="summary-message">
-                {changedCount
-                  ? `${changedCount} changed file${changedCount !== 1 ? "s" : ""}`
-                  : "No uncommitted changes"}
-              </span>
-            </>
-          )}
-          <span className="summary-right">
-            {commit ? "Committed changes" : "Uncommitted changes"}
-          </span>
-        </div>
-        {mode === "commit" ? (
-          <div className="commit-details">
-            <GitCommitHorizontal size={32} />
-            <h2>{currentCommit?.subject || "Commit your changes"}</h2>
-            {currentCommit ? (
-              <>
-                <p>
-                  {currentCommit.author} ·{" "}
-                  {new Date(currentCommit.date).toLocaleString()}
-                </p>
-                <code>{currentCommit.hash}</code>
-                <Button variant="outline" onClick={() => setMode("changes")}>
-                  View changed files
-                </Button>
-              </>
-            ) : (
-              <>
-                <p>
-                  Stage all local changes and create a commit on{" "}
-                  <strong>{state.branch}</strong>.
-                </p>
-                <Button
-                  disabled={!changedCount || !!busy}
-                  onClick={() =>
-                    actionModal(
-                      "Commit all changes",
-                      "commit",
-                      [
-                        {
-                          key: "name",
-                          label: "Commit message",
-                          placeholder: "Describe your changes",
-                        },
-                      ],
-                      {},
-                      "This stages and commits all current changes, including untracked files.",
-                    )
-                  }
+                <button
+                  className="tab-close"
+                  aria-label={`Close ${p.name} tab`}
+                  onClick={() => {
+                    const remaining = openIds.filter((id) => id !== p.id);
+                    setOpenIds(remaining);
+                    if (active === p.id) {
+                      if (remaining[0]) setActive(remaining[0]);
+                      else {
+                        setActive("");
+                        setFiles([]);
+                        setContent(null);
+                      }
+                    }
+                  }}
                 >
-                  Commit changes…
-                </Button>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="workspace">
-            <aside className="files-pane">
-              <div className="file-filter">
-                <Search size={13} />
-                <input
-                  placeholder="Filter files…"
-                  aria-label="Filter files"
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                />
-                <span>{files.length}</span>
+                  <X size={12} />
+                </button>
               </div>
-              <div className="files-scroll">
-                <FileTree
-                  files={files}
-                  selected={selected}
-                  onSelect={selectFile}
-                  filter={filter}
-                />
-                {!files.length && (
-                  <div className="files-empty">
-                    {connected ? "No changed files" : "Connect a repository"}
+            ))}
+            <Dropdown
+              trigger={
+                <button className="add-tab" aria-label="Open project tab">
+                  <Plus size={17} />
+                </button>
+              }
+              items={[
+                ...projects.map((p) => ({
+                  label: p.name,
+                  onSelect: () => openProject(p.id),
+                })),
+                { label: "Open repository…", onSelect: openDialog },
+              ]}
+            />
+          </div>
+          {!connected && (
+            <div className="demo-banner">
+              <div>
+                <span className="example-dot" />
+                Preview workspace{" "}
+                <span className="demo-description">
+                  Connect your computer to start reviewing local code.
+                </span>
+              </div>
+              <button onClick={() => requireConnection()}>
+                Connect local bridge <ArrowUp size={12} className="rotate-45" />
+              </button>
+            </div>
+          )}
+          <WorkspaceLayout
+            kind="history"
+            leading={
+              showHistory ? (
+                <section className="history">
+                  <div className="history-heading">
+                    <span>
+                      <GitCommitHorizontal size={14} />
+                      Commit history{" "}
+                      <span className="muted">
+                        {state.commits.length}
+                        {state.commits.length === 150 ? "+" : ""}
+                      </span>
+                    </span>
+                    <button
+                      aria-label="Collapse commit history"
+                      onClick={() => setShowHistory(false)}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
                   </div>
+                  <div className="commit-list">
+                    {state.commits.map((c, i) => (
+                      <button
+                        className={`commit-row ${commit === c.hash ? "selected" : ""}`}
+                        key={c.hash}
+                        onClick={() => selectCommit(c.hash)}
+                      >
+                        <span className={`graph-node graph-${i % 3}`}>
+                          <span />
+                        </span>
+                        <span className="commit-subject">
+                          {c.refs && (
+                            <span className="branch-label" title={c.refs}>
+                              <GitBranch size={10} />
+                              {c.refs.includes("HEAD")
+                                ? state.branch
+                                : c.refs.split(",")[0]}
+                            </span>
+                          )}
+                          {c.subject}
+                        </span>
+                        <span className="commit-author">
+                          <span className="avatar">{initials(c.author)}</span>
+                          {c.author}
+                        </span>
+                        <code>{c.short}</code>
+                        <time title={c.date}>
+                          {new Date(c.date).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </time>
+                      </button>
+                    ))}
+                    {!state.commits.length && (
+                      <div className="history-empty">
+                        No commits yet. Your local changes appear below.
+                      </div>
+                    )}
+                  </div>
+                </section>
+              ) : null
+            }
+          >
+            <div className="workspace-tabs">
+              <div>
+                {(["commit", "changes", "tree"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    className={mode === tab ? "selected" : ""}
+                    onClick={() => setMode(tab)}
+                  >
+                    {tab === "commit"
+                      ? "Commit"
+                      : tab === "changes"
+                        ? "Changes"
+                        : "File Tree"}
+                    {tab === "changes" && <span>{files.length}</span>}
+                  </button>
+                ))}
+              </div>
+              <div className="workspace-options">
+                {!showHistory && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowHistory(true)}
+                  >
+                    <History size={14} />
+                    History
+                  </Button>
+                )}
+                <span className="diff-stat add">+{additions}</span>
+                <span className="diff-stat remove">−{deletions}</span>
+                <span className="separator" />
+                <label className="auto-sync">
+                  <Switch.Root
+                    checked={autoSync}
+                    onCheckedChange={setAutoSync}
+                    className="switch"
+                    aria-label="Auto sync"
+                  >
+                    <Switch.Thumb className="switch-thumb" />
+                  </Switch.Root>
+                  Auto sync
+                </label>
+              </div>
+            </div>
+            <div className="change-summary">
+              {currentCommit ? (
+                <>
+                  <span className="avatar">
+                    {initials(currentCommit.author)}
+                  </span>
+                  <strong>{currentCommit.author}</strong>
+                  <code>{currentCommit.short}</code>
+                  <span className="summary-message">
+                    {currentCommit.subject}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="working-dot" />
+                  <strong>
+                    {active
+                      ? "Working directory"
+                      : "Choose a project to get started"}
+                  </strong>
+                  <span className="summary-message">
+                    {changedCount
+                      ? `${changedCount} changed file${changedCount !== 1 ? "s" : ""}`
+                      : "No uncommitted changes"}
+                  </span>
+                </>
+              )}
+              <span className="summary-right">
+                {commit ? "Committed changes" : "Uncommitted changes"}
+              </span>
+            </div>
+            {mode === "commit" ? (
+              <div className="commit-details">
+                <GitCommitHorizontal size={32} />
+                <h2>{currentCommit?.subject || "Commit your changes"}</h2>
+                {currentCommit ? (
+                  <>
+                    <p>
+                      {currentCommit.author} ·{" "}
+                      {new Date(currentCommit.date).toLocaleString()}
+                    </p>
+                    <code>{currentCommit.hash}</code>
+                    <Button
+                      variant="outline"
+                      onClick={() => setMode("changes")}
+                    >
+                      View changed files
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Stage all local changes and create a commit on{" "}
+                      <strong>{state.branch}</strong>.
+                    </p>
+                    <Button
+                      disabled={!changedCount || !!busy}
+                      onClick={() =>
+                        actionModal(
+                          "Commit all changes",
+                          "commit",
+                          [
+                            {
+                              key: "name",
+                              label: "Commit message",
+                              placeholder: "Describe your changes",
+                            },
+                          ],
+                          {},
+                          "This stages and commits all current changes, including untracked files.",
+                        )
+                      }
+                    >
+                      Commit changes…
+                    </Button>
+                  </>
                 )}
               </div>
-              <div className="files-footer">
-                <Folder size={12} />
-                {mode === "tree" ? "All files" : "Changed files"}
-                <span>{files.filter((f) => f.staged).length} staged</span>
-              </div>
-            </aside>
-            {connected && !active ? (
-              <div className="welcome-project">
-                <FolderOpen size={32} />
-                <h2>Open a project</h2>
-                <p>Choose a folder on your Mac to review its changes.</p>
-                <Button onClick={openDialog}>Choose folder</Button>
-              </div>
             ) : (
-              <DiffPane
-                content={content}
-                loading={fileLoading}
-                full={full}
-                setFull={setFull}
-                split={split}
-                setSplit={setSplit}
-                fileMode={mode === "tree"}
-                onResolve={(value) =>
-                  actionModal(
-                    "Save conflict resolution",
-                    "resolve",
-                    [],
-                    { path: selected, content: value },
-                    "Write your resolution to disk and stage this file.",
-                  )
+              <WorkspaceLayout
+                kind="files"
+                leading={
+                  <aside className="files-pane">
+                    <div className="file-filter">
+                      <Search size={13} />
+                      <input
+                        placeholder="Filter files…"
+                        aria-label="Filter files"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                      />
+                      <span>{files.length}</span>
+                    </div>
+                    <div className="files-scroll">
+                      <FileTree
+                        files={files}
+                        selected={selected}
+                        onSelect={selectFile}
+                        filter={filter}
+                      />
+                      {!files.length && (
+                        <div className="files-empty">
+                          {connected
+                            ? "No changed files"
+                            : "Connect a repository"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="files-footer">
+                      <Folder size={12} />
+                      {mode === "tree" ? "All files" : "Changed files"}
+                      <span>{files.filter((f) => f.staged).length} staged</span>
+                    </div>
+                  </aside>
                 }
-                onPrevious={() => selectFile(files[currentIndex - 1].path)}
-                onNext={() => selectFile(files[currentIndex + 1].path)}
-                hasPrevious={currentIndex > 0}
-                hasNext={currentIndex >= 0 && currentIndex < files.length - 1}
-              />
+              >
+                {connected && !active ? (
+                  <div className="welcome-project">
+                    <FolderOpen size={32} />
+                    <h2>Open a project</h2>
+                    <p>Choose a folder on your Mac to review its changes.</p>
+                    <Button onClick={openDialog}>Choose folder</Button>
+                  </div>
+                ) : (
+                  <DiffPane
+                    content={content}
+                    loading={fileLoading}
+                    full={full}
+                    setFull={setFull}
+                    split={split}
+                    setSplit={setSplit}
+                    fileMode={mode === "tree"}
+                    onResolve={(value) =>
+                      actionModal(
+                        "Save conflict resolution",
+                        "resolve",
+                        [],
+                        { path: selected, content: value },
+                        "Write your resolution to disk and stage this file.",
+                      )
+                    }
+                    onPrevious={() => selectFile(files[currentIndex - 1].path)}
+                    onNext={() => selectFile(files[currentIndex + 1].path)}
+                    hasPrevious={currentIndex > 0}
+                    hasNext={
+                      currentIndex >= 0 && currentIndex < files.length - 1
+                    }
+                  />
+                )}
+              </WorkspaceLayout>
             )}
-          </div>
-        )}
-        <footer className="statusbar">
-          <span>
-            <GitBranch size={12} />
-            {state.branch}
-          </span>
-          <span>
-            <ArrowDown size={11} />
-            {state.behind}
-            <ArrowUp size={11} />
-            {state.ahead}
-          </span>
-          <span className="status-message">
-            {busy ? (
-              <>
-                <Loader2 size={12} className="animate-spin" />
-                {busy}
-              </>
-            ) : (
-              <>
-                <span className={connected ? "status-dot" : "preview-dot"} />
-                {syncText}
-              </>
-            )}
-          </span>
-        </footer>
-      </main>
+          </WorkspaceLayout>
+          <footer className="statusbar">
+            <span>
+              <GitBranch size={12} />
+              {state.branch}
+            </span>
+            <span>
+              <ArrowDown size={11} />
+              {state.behind}
+              <ArrowUp size={11} />
+              {state.ahead}
+            </span>
+            <span className="status-message">
+              {busy ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  {busy}
+                </>
+              ) : (
+                <>
+                  <span className={connected ? "status-dot" : "preview-dot"} />
+                  {syncText}
+                </>
+              )}
+            </span>
+          </footer>
+        </main>
+      </WorkspaceLayout>
       <Dialog
         open={!!modal}
         onOpenChange={(open) => {
@@ -1289,7 +1308,7 @@ export function App() {
           <div className="connect-content">
             <a
               className="desktop-download"
-              href="https://github.com/Davidkle/diffs-workbench/releases/latest/download/Diffs-0.1.0-arm64.zip"
+              href="https://github.com/Davidkle/diffs-workbench/releases/latest/download/Diffs-0.1.1-arm64.zip"
               target="_blank"
               rel="noreferrer"
             >

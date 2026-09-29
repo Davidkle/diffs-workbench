@@ -511,7 +511,6 @@ button svg {
   height: 178px;
   min-height: 90px;
   max-height: 35vh;
-  resize: vertical;
   overflow: hidden;
   border-bottom: 1px solid #262626;
   display: flex;
@@ -786,7 +785,6 @@ button svg {
   width: 270px;
   min-width: 200px;
   max-width: 45%;
-  resize: horizontal;
   overflow: hidden;
   background: #171717;
   border-right: 1px solid #262626;
@@ -1632,4 +1630,106 @@ button svg {
   color: var(--foreground);
   font-size: 20px;
   font-weight: 600;
+}
+
+/* Panel boundaries are managed by shadcn Resizable. */
+.layout-group {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+.layout-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.layout-panel > .sidebar,
+.layout-panel > .files-pane {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  border-right: 0;
+}
+.layout-panel > .history {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border-bottom: 0;
+}
+.layout-panel > .main {
+  height: 100%;
+}
+.workspace-resize-handle {
+  flex-shrink: 0;
+  z-index: 5;
+  transition: background-color 120ms;
+}
+.workspace-resize-handle:hover,
+.workspace-resize-handle:focus-visible,
+.workspace-resize-handle[data-separator="active"] {
+  background: var(--ring);
+}
+.workspace-resize-handle > div {
+  color: var(--muted-foreground);
+}
+
+/* Compact toolbar: project identity already lives in the project tabs. */
+.toolbar {
+  height: 34px;
+  min-height: 34px;
+  gap: 16px;
+}
+.toolbar .tool {
+  flex-direction: row;
+  gap: 6px;
+  height: 28px;
+}
+.toolbar .tool svg {
+  width: 15px;
+  height: 15px;
+}
+.toolbar .tool small {
+  font-size: 11px;
+}
+.toolbar-divider {
+  height: 18px;
+}
+.toolbar-right {
+  margin-left: auto;
+  flex: 0 0 auto;
+  max-width: none;
+}
+.toolbar-right > .tool {
+  display: flex;
+}
+.toolbar .mobile-menu {
+  width: 26px;
+  height: 26px;
+}
+@media (max-width: 800px) {
+  .toolbar {
+    height: 30px;
+    min-height: 30px;
+    gap: 8px;
+  }
+  .toolbar-actions {
+    gap: 10px;
+  }
+  .toolbar .tool {
+    gap: 4px;
+  }
+  .toolbar .tool small {
+    font-size: 10px;
+  }
+}
+@media (max-width: 540px) {
+  .toolbar-actions {
+    gap: 8px;
+  }
+  .toolbar .tool small {
+    font-size: 9px;
+  }
 }
