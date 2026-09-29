@@ -1456,7 +1456,7 @@ export function App() {
           <div className="connect-content">
             <a
               className="desktop-download"
-              href="https://github.com/Davidkle/diffs-workbench/releases/latest/download/Diffs-0.1.3-arm64.zip"
+              href="https://github.com/Davidkle/diffs-workbench/releases/latest"
               target="_blank"
               rel="noreferrer"
             >
