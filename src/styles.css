@@ -1678,8 +1678,8 @@ button svg {
 
 /* Compact toolbar: project identity already lives in the project tabs. */
 .toolbar {
-  height: 34px;
-  min-height: 34px;
+  height: 44.2px;
+  min-height: 44.2px;
   gap: 16px;
 }
 .toolbar .tool {
@@ -1711,8 +1711,8 @@ button svg {
 }
 @media (max-width: 800px) {
   .toolbar {
-    height: 30px;
-    min-height: 30px;
+    height: 39px;
+    min-height: 39px;
     gap: 8px;
   }
   .toolbar-actions {
