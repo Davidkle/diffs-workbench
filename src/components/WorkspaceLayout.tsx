@@ -106,7 +106,6 @@ function SavedWorkspaceLayout({ children, leading, kind, projectId }: Props) {
           <ResizableHandle
             withHandle
             aria-label={label}
-            title={label}
             className="workspace-resize-handle"
           />
         </>
