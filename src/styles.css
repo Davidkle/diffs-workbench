@@ -2,10 +2,32 @@
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+}
 :root {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --ring: oklch(0.556 0 0);
   font-family: var(--font-sans);
-  color: #dfdce3;
-  background: #1d1b21;
+  color: #f5f5f5;
+  background: #171717;
   font-size: 14px;
   font-synthesis: none;
   color-scheme: dark;
@@ -31,7 +53,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #b89ddb;
+  outline: 2px solid #a3a3a3;
   outline-offset: 2px;
 }
 input,
@@ -52,16 +74,16 @@ button svg {
   pointer-events: none;
 }
 ::selection {
-  background: #775d95aa;
+  background: #737373aa;
 }
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #5b565f;
+  background: #404040;
   border-radius: 8px;
-  border: 2px solid #26232a;
+  border: 2px solid #171717;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -71,49 +93,17 @@ button svg {
   height: 100dvh;
   min-height: 430px;
   overflow: hidden;
-  background: #232126;
+  background: #171717;
 }
 .sidebar {
   width: 226px;
   min-width: 226px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #403744;
-  background: linear-gradient(145deg, #272030 0, #211e26 25%, #211e26 100%);
+  border-right: 1px solid #262626;
+  background: linear-gradient(145deg, #171717 0, #171717 25%, #171717 100%);
 }
-.brand {
-  height: 68px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 21px;
-  font-size: 25px;
-  font-weight: 650;
-  letter-spacing: -1.2px;
-}
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 29px;
-  height: 29px;
-  border-radius: 7px;
-  border: 1px solid #b29bc455;
-  background: #a88aca14;
-  color: #c6a8e8;
-}
-.brand-period {
-  color: #ba9eda;
-}
-.local-label {
-  margin-left: 6px;
-  letter-spacing: 1.5px;
-  font-size: 9px;
-  font-weight: 600;
-  color: #9b8ba9;
-  border: 1px solid #58485f;
-  border-radius: 3px;
-  padding: 2px 4px;
-}
+
 .project-heading {
   display: flex;
   align-items: center;
@@ -124,12 +114,12 @@ button svg {
 }
 .icon-button {
   padding: 2px;
-  color: #a39ba8;
+  color: #a3a3a3;
   display: flex;
   border-radius: 3px;
 }
 .icon-button:hover {
-  background: #ffffff12;
+  background: #f5f5f512;
 }
 .primary-nav {
   padding: 0 10px 14px;
@@ -143,22 +133,22 @@ button svg {
   padding: 0 10px;
   font-size: 12px;
   border-radius: 5px;
-  color: #b9b3c1;
+  color: #d4d4d4;
 }
 .primary-nav button.active {
-  background: #aa90c918;
-  color: #e2d6ee;
+  background: #a3a3a318;
+  color: #f5f5f5;
 }
 .primary-nav button.active svg {
-  color: #bc9ddd;
+  color: #a3a3a3;
 }
 .primary-nav .count {
   margin-left: auto;
-  background: #bca1d11f;
+  background: #a3a3a31f;
   padding: 1px 6px;
   line-height: 16px;
   border-radius: 4px;
-  color: #c7b7d5;
+  color: #d4d4d4;
   font-size: 10px;
 }
 .sidebar-switch {
@@ -167,13 +157,13 @@ button svg {
   gap: 8px;
   height: 37px;
   padding: 0 20px;
-  border-top: 1px solid #38313e;
-  border-bottom: 1px solid #38313e;
-  color: #aea1bb;
+  border-top: 1px solid #262626;
+  border-bottom: 1px solid #262626;
+  color: #a3a3a3;
   font-size: 11px;
 }
 .sidebar-switch > svg:first-child {
-  color: #c1a3e2;
+  color: #a3a3a3;
 }
 .sidebar-filter {
   display: flex;
@@ -182,9 +172,9 @@ button svg {
   height: 28px;
   padding: 0 7px;
   margin: 10px;
-  border: 1px solid #49414f;
+  border: 1px solid #404040;
   border-radius: 5px;
-  color: #82798b;
+  color: #737373;
 }
 .sidebar-filter input {
   background: transparent;
@@ -192,12 +182,12 @@ button svg {
   outline: none;
   width: 100%;
   font-size: 11px;
-  color: #d5cbdc;
+  color: #d4d4d4;
 }
 .sidebar-filter kbd {
   white-space: nowrap;
   font-size: 9px;
-  color: #766d7e;
+  color: #737373;
 }
 .sidebar-scroll {
   overflow-y: auto;
@@ -220,15 +210,15 @@ button svg {
   gap: 6px;
   font-size: 11px;
   font-weight: 650;
-  color: #d1c9d8;
+  color: #d4d4d4;
   padding: 0 3px;
 }
 .section-header svg {
-  color: #998da4;
+  color: #a3a3a3;
 }
 .section-add {
   opacity: 0;
-  color: #afa2ba;
+  color: #a3a3a3;
   padding: 4px;
 }
 .nav-section:hover .section-add {
@@ -241,7 +231,7 @@ button svg {
   border-radius: 4px;
 }
 .nav-row-group:hover {
-  background: #ffffff07;
+  background: #f5f5f507;
 }
 .nav-row {
   display: flex;
@@ -252,7 +242,7 @@ button svg {
   padding: 0 10px 0 26px;
   width: 100%;
   font-size: 12px;
-  color: #bfb8c8;
+  color: #d4d4d4;
   text-align: left;
 }
 .nav-row > span {
@@ -261,25 +251,25 @@ button svg {
   white-space: nowrap;
 }
 .nav-row svg {
-  color: #8f849b;
+  color: #a3a3a3;
 }
 .nav-row.current {
-  color: #e7dfed;
+  color: #f5f5f5;
   font-weight: 600;
 }
 .nav-row.current svg {
-  color: #c6a8e2;
+  color: #d4d4d4;
 }
 .nav-row small {
   margin-left: auto;
   font-size: 10px;
-  color: #a59aaa;
+  color: #a3a3a3;
 }
 .current-dot {
   width: 5px;
   height: 5px;
   min-width: 5px;
-  background: #bfa7d9;
+  background: #a3a3a3;
   border-radius: 50%;
   margin-left: auto;
 }
@@ -287,7 +277,7 @@ button svg {
   display: flex;
   position: absolute;
   right: 4px;
-  background: #302935;
+  background: #171717;
   border-radius: 3px;
   padding: 4px;
   opacity: 0;
@@ -300,23 +290,9 @@ button svg {
 .nav-empty {
   padding: 4px 0 3px 26px;
   font-size: 11px;
-  color: #77707f;
+  color: #737373;
 }
-.sidebar-bottom {
-  border-top: 1px solid #37303d;
-  padding: 14px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 10px;
-  color: #958a9f;
-}
-.sidebar-bottom > svg {
-  color: #b19bc3;
-}
-.sidebar-bottom > a {
-  margin-left: auto;
-}
+
 .main {
   display: flex;
   flex-direction: column;
@@ -327,8 +303,8 @@ button svg {
 .toolbar {
   height: 68px;
   min-height: 68px;
-  background: linear-gradient(#2d2b30, #29272c);
-  border-bottom: 1px solid #38353c;
+  background: linear-gradient(#171717, #171717);
+  border-bottom: 1px solid #262626;
   display: flex;
   align-items: center;
   padding: 0 17px;
@@ -344,7 +320,7 @@ button svg {
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  color: #b7b2be;
+  color: #d4d4d4;
   min-width: 28px;
 }
 .tool > span {
@@ -359,13 +335,13 @@ button svg {
 .tool small {
   font-size: 10px;
   letter-spacing: 0.15px;
-  color: #97929e;
+  color: #a3a3a3;
 }
 .tool:hover {
-  color: #dfc9f5;
+  color: #d4d4d4;
 }
 .tool:hover small {
-  color: #cec0d9;
+  color: #d4d4d4;
 }
 .tool:disabled {
   opacity: 0.35;
@@ -374,22 +350,22 @@ button svg {
   position: absolute;
   top: -6px;
   right: -9px;
-  background: #a895b7;
+  background: #a3a3a3;
   border-radius: 7px;
   font-size: 8px;
   min-width: 12px;
   font-style: normal;
-  color: #241e2a;
+  color: #171717;
 }
 .toolbar-divider {
   height: 29px;
   width: 1px;
-  background: #413c46;
+  background: #262626;
   margin-right: 1px;
 }
 .repository-selector {
-  background: #3c3940;
-  border: 1px solid #48434d;
+  background: #262626;
+  border: 1px solid #404040;
   border-radius: 6px;
   text-align: center;
   max-width: 300px;
@@ -407,7 +383,7 @@ button svg {
 .repository-selector small {
   font-size: 10px;
   font-weight: 400;
-  color: #b2aab9;
+  color: #a3a3a3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -425,16 +401,16 @@ button svg {
   align-items: center;
   gap: 7px;
   font-size: 10px;
-  border: 1px solid #51465c;
+  border: 1px solid #404040;
   border-radius: 5px;
   padding: 5px 8px;
-  color: #c7b4d6;
+  color: #d4d4d4;
   white-space: nowrap;
 }
 .connection-pill > span {
   width: 5px;
   height: 5px;
-  background: #ae93cc;
+  background: #a3a3a3;
   border-radius: 50%;
 }
 .connection-pill.connected > span {
@@ -449,8 +425,8 @@ button svg {
   min-height: 33px;
   display: flex;
   gap: 1px;
-  background: #242227;
-  border-bottom: 1px solid #413749;
+  background: #171717;
+  border-bottom: 1px solid #262626;
   padding: 3px 8px 0;
   overflow-x: auto;
 }
@@ -461,14 +437,14 @@ button svg {
   max-width: 260px;
   flex: 1;
   border-radius: 5px 5px 0 0;
-  color: #89828f;
+  color: #a3a3a3;
   font-size: 11px;
   border-bottom: 2px solid transparent;
 }
 .project-tab.active {
-  background: #36303e;
-  color: #e1d7ec;
-  border-bottom-color: #ad8acc;
+  background: #262626;
+  color: #f5f5f5;
+  border-bottom-color: #a3a3a3;
 }
 .project-tab > button:first-child {
   display: flex;
@@ -480,7 +456,7 @@ button svg {
   white-space: nowrap;
 }
 .project-tab > button svg {
-  color: #9e8dab;
+  color: #a3a3a3;
 }
 .tab-close {
   margin-right: 5px;
@@ -496,17 +472,17 @@ button svg {
   justify-content: center;
   width: 29px;
   min-width: 29px;
-  color: #a398af;
+  color: #a3a3a3;
 }
 .demo-banner {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  background: #302739;
-  border-bottom: 1px solid #4b3c56;
+  background: #171717;
+  border-bottom: 1px solid #262626;
   padding: 8px 16px;
-  color: #d4bce8;
+  color: #d4d4d4;
   font-size: 11px;
 }
 .demo-banner > div {
@@ -518,10 +494,10 @@ button svg {
   height: 5px;
   width: 5px;
   border-radius: 50%;
-  background: #bd97df;
+  background: #a3a3a3;
 }
 .demo-description {
-  color: #a393b2;
+  color: #a3a3a3;
   margin-left: 8px;
 }
 .demo-banner button {
@@ -529,7 +505,7 @@ button svg {
   align-items: center;
   gap: 5px;
   white-space: nowrap;
-  color: #e0c9f5;
+  color: #d4d4d4;
 }
 .history {
   height: 178px;
@@ -537,7 +513,7 @@ button svg {
   max-height: 35vh;
   resize: vertical;
   overflow: hidden;
-  border-bottom: 1px solid #403b44;
+  border-bottom: 1px solid #262626;
   display: flex;
   flex-direction: column;
 }
@@ -548,8 +524,8 @@ button svg {
   align-items: center;
   justify-content: space-between;
   padding: 0 15px;
-  background: #28252c;
-  color: #8e8597;
+  background: #171717;
+  color: #a3a3a3;
   font-size: 10px;
 }
 .history-heading > span {
@@ -559,7 +535,7 @@ button svg {
 }
 .history-heading .muted {
   font-size: 9px;
-  background: #ffffff08;
+  background: #f5f5f508;
   padding: 0 5px;
   border-radius: 3px;
 }
@@ -567,7 +543,7 @@ button svg {
   overflow: auto;
   flex: 1;
   padding: 4px 9px;
-  background: #242127;
+  background: #171717;
 }
 .commit-row {
   height: 27px;
@@ -580,14 +556,14 @@ button svg {
   padding: 0 10px 0 4px;
   border-radius: 4px;
   font-size: 11px;
-  color: #bfb9c6;
+  color: #d4d4d4;
 }
 .commit-row:hover {
-  background: #ffffff08;
+  background: #f5f5f508;
 }
 .commit-row.selected {
-  background: #49414f;
-  color: #eee7f4;
+  background: #404040;
+  color: #f5f5f5;
 }
 .graph-node {
   height: 100%;
@@ -603,13 +579,13 @@ button svg {
   position: absolute;
   width: 1px;
   height: 100%;
-  background: #b591d2;
+  background: #a3a3a3;
 }
 .graph-node > span {
   height: 5px;
   width: 5px;
   border-radius: 50%;
-  background: #bc97d8;
+  background: #a3a3a3;
   z-index: 1;
 }
 .graph-1 > span {
@@ -657,23 +633,23 @@ button svg {
   font-size: 8px;
   font-weight: 700;
   border-radius: 4px;
-  color: #bdb1c7;
-  background: linear-gradient(135deg, #54475f, #33313e);
+  color: #d4d4d4;
+  background: linear-gradient(135deg, #404040, #262626);
 }
 .commit-row code {
   font-size: 10px;
-  color: #978ca3;
+  color: #a3a3a3;
   width: 56px;
 }
 .commit-row time {
-  color: #8c8395;
+  color: #a3a3a3;
   width: 65px;
   text-align: right;
   font-size: 10px;
 }
 .history-empty {
   padding: 15px;
-  color: #8f859b;
+  color: #a3a3a3;
   font-size: 12px;
 }
 .workspace-tabs {
@@ -683,8 +659,8 @@ button svg {
   height: 37px;
   min-height: 37px;
   padding: 0 12px;
-  background: #302c34;
-  border-bottom: 1px solid #403b44;
+  background: #171717;
+  border-bottom: 1px solid #262626;
   gap: 8px;
 }
 .workspace-tabs > div:first-child {
@@ -695,20 +671,20 @@ button svg {
   border-radius: 4px;
   padding: 4px 10px;
   font-size: 11px;
-  color: #aba2b5;
+  color: #a3a3a3;
   display: flex;
   gap: 7px;
   align-items: center;
 }
 .workspace-tabs > div:first-child > button.selected {
-  background: #4a424f;
-  color: #e0d9e7;
+  background: #404040;
+  color: #f5f5f5;
 }
 .workspace-tabs button span {
   font-size: 9px;
   border-radius: 3px;
-  background: #ffffff0b;
-  color: #c1b7cc;
+  background: #f5f5f50b;
+  color: #d4d4d4;
   padding: 0 4px;
 }
 .workspace-options {
@@ -730,12 +706,12 @@ button svg {
   display: block;
   width: 1px;
   height: 15px;
-  background: #4a414f;
+  background: #404040;
   margin: 0 4px;
 }
 .auto-sync {
   font-size: 10px;
-  color: #b5aabb;
+  color: #a3a3a3;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -744,18 +720,18 @@ button svg {
 .switch {
   height: 13px;
   width: 24px;
-  background: #514854;
+  background: #404040;
   border-radius: 20px;
   padding: 2px;
 }
 .switch[data-state="checked"] {
-  background: #9a80b5;
+  background: #a3a3a3;
 }
 .switch-thumb {
   display: block;
   width: 9px;
   height: 9px;
-  background: #e7deee;
+  background: #f5f5f5;
   border-radius: 50%;
   transition: transform 0.2s;
 }
@@ -769,18 +745,18 @@ button svg {
   padding: 0 15px;
   height: 32px;
   min-height: 32px;
-  background: #28252b;
-  border-bottom: 1px solid #39333e;
+  background: #171717;
+  border-bottom: 1px solid #262626;
   font-size: 11px;
-  color: #a99caf;
+  color: #a3a3a3;
 }
 .change-summary strong {
-  color: #cfc7d7;
+  color: #d4d4d4;
   font-weight: 500;
 }
 .change-summary code {
   font-size: 10px;
-  color: #8c8297;
+  color: #a3a3a3;
 }
 .summary-message {
   overflow: hidden;
@@ -790,15 +766,15 @@ button svg {
 .working-dot {
   height: 6px;
   width: 6px;
-  background: #c5a1e5;
-  box-shadow: 0 0 0 3px #c5a1e510;
+  background: #a3a3a3;
+  box-shadow: 0 0 0 3px #a3a3a310;
   border-radius: 50%;
   margin-right: 4px;
 }
 .summary-right {
   margin-left: auto;
   font-size: 10px;
-  color: #84788e;
+  color: #737373;
   white-space: nowrap;
 }
 .workspace {
@@ -812,8 +788,8 @@ button svg {
   max-width: 45%;
   resize: horizontal;
   overflow: hidden;
-  background: #252129;
-  border-right: 1px solid #403648;
+  background: #171717;
+  border-right: 1px solid #262626;
   display: flex;
   flex-direction: column;
 }
@@ -823,22 +799,22 @@ button svg {
   gap: 7px;
   height: 35px;
   min-height: 35px;
-  border-bottom: 1px solid #38303e;
+  border-bottom: 1px solid #262626;
   padding: 0 12px;
-  color: #8c7f97;
+  color: #a3a3a3;
 }
 .file-filter input {
   font-size: 11px;
   border: 0;
   background: transparent;
   outline: 0;
-  color: #c3b5cd;
+  color: #d4d4d4;
   flex: 1;
   width: 0;
 }
 .file-filter > span {
   font-size: 10px;
-  color: #776d82;
+  color: #737373;
 }
 .files-scroll {
   flex: 1;
@@ -855,25 +831,25 @@ button svg {
   border-radius: 5px;
   text-align: left;
   font-size: 12px;
-  color: #c9c0d3;
+  color: #d4d4d4;
   white-space: nowrap;
 }
 .tree-row:hover {
-  background: #ffffff07;
+  background: #f5f5f507;
 }
 .tree-row.selected {
-  background: #49404f;
-  color: #f1e8f8;
+  background: #262626;
+  color: #f5f5f5;
 }
 .tree-row .folder {
   color: #88afd1;
   fill: #88afd121;
 }
 .tree-row > svg:first-child {
-  color: #9e90aa;
+  color: #a3a3a3;
 }
 .file-icon {
-  color: #a59bb0;
+  color: #a3a3a3;
 }
 .status-badge {
   border-radius: 3px;
@@ -921,19 +897,19 @@ button svg {
   gap: 5px;
   height: 26px;
   min-height: 26px;
-  border-top: 1px solid #393040;
+  border-top: 1px solid #262626;
   padding: 0 11px;
   font-size: 9px;
-  color: #9789a3;
+  color: #a3a3a3;
 }
 .files-footer span {
   margin-left: auto;
   font-size: 9px;
-  color: #82768f;
+  color: #737373;
 }
 .files-empty {
   padding: 20px;
-  color: #8c8097;
+  color: #a3a3a3;
   font-size: 12px;
 }
 .diff-pane {
@@ -941,7 +917,7 @@ button svg {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: #222225;
+  background: #171717;
 }
 .diff-toolbar {
   display: flex;
@@ -951,15 +927,15 @@ button svg {
   padding: 0 9px 0 13px;
   height: 35px;
   min-height: 35px;
-  background: #29272b;
-  border-bottom: 1px solid #39353e;
+  background: #171717;
+  border-bottom: 1px solid #262626;
 }
 .file-name {
   display: flex;
   align-items: center;
   gap: 7px;
   font-size: 11px;
-  color: #c2b9cd;
+  color: #d4d4d4;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -968,7 +944,7 @@ button svg {
   text-overflow: ellipsis;
 }
 .file-name svg {
-  color: #93889e;
+  color: #a3a3a3;
 }
 .diff-controls {
   display: flex;
@@ -981,8 +957,8 @@ button svg {
   font-size: 10px;
 }
 .diff-controls button.active-control {
-  color: #c8ace4;
-  background: #b49ac915;
+  color: #d4d4d4;
+  background: #a3a3a315;
 }
 .diff-controls button.w-8 {
   width: 26px;
@@ -1005,15 +981,15 @@ button svg {
   min-height: 250px;
   height: 100%;
   text-align: center;
-  color: #847a8e;
+  color: #737373;
   padding: 28px;
 }
 .empty > svg {
-  color: #a18db2;
+  color: #a3a3a3;
   stroke-width: 1;
 }
 .empty h3 {
-  color: #c8bbd3;
+  color: #d4d4d4;
   font-size: 16px;
 }
 .empty p {
@@ -1024,8 +1000,8 @@ button svg {
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #54475e;
-  border-top-color: #c0a1df;
+  border: 2px solid #404040;
+  border-top-color: #a3a3a3;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1062,14 +1038,14 @@ button svg {
 }
 .resolution label {
   font-size: 12px;
-  color: #bfb0cc;
+  color: #d4d4d4;
 }
 .resolution textarea {
   min-height: 280px;
   resize: vertical;
   width: 100%;
-  background: #1c1a20;
-  border: 1px solid #554561;
+  background: #171717;
+  border: 1px solid #404040;
   border-radius: 6px;
   padding: 12px;
   font-family: monospace;
@@ -1087,21 +1063,21 @@ button svg {
   flex-direction: column;
   padding: 40px;
   gap: 17px;
-  background: #242127;
+  background: #171717;
 }
 .commit-details > svg {
-  color: #b49acb;
+  color: #a3a3a3;
 }
 .commit-details h2 {
   font-size: 22px;
   max-width: 700px;
 }
 .commit-details p {
-  color: #a99ab6;
+  color: #a3a3a3;
   font-size: 13px;
 }
 .commit-details code {
-  color: #91829e;
+  color: #a3a3a3;
   font-size: 12px;
   word-break: break-all;
 }
@@ -1112,9 +1088,9 @@ button svg {
   align-items: center;
   gap: 15px;
   padding: 0 12px;
-  border-top: 1px solid #423749;
-  background: #29232f;
-  color: #a597b2;
+  border-top: 1px solid #262626;
+  background: #171717;
+  color: #a3a3a3;
   font-size: 9px;
 }
 .statusbar > span,
@@ -1139,10 +1115,10 @@ button svg {
   flex-shrink: 0;
 }
 .preview-dot {
-  background: #b197c9;
+  background: #a3a3a3;
 }
 .statusbar > a {
-  color: #8c7b9c;
+  color: #737373;
 }
 .modal-form {
   display: flex;
@@ -1156,22 +1132,22 @@ button svg {
   flex-direction: column;
   gap: 7px;
   font-size: 12px;
-  color: #cfc2dc;
+  color: #d4d4d4;
 }
 .modal-form input,
 .connect-content input {
   width: 100%;
-  border: 1px solid #55475f;
-  background: #1c1921;
+  border: 1px solid #404040;
+  background: #171717;
   border-radius: 6px;
   padding: 10px;
   font-size: 13px;
-  color: #e0d5e8;
+  color: #f5f5f5;
   outline: 0;
 }
 .modal-form input:focus,
 .connect-content input:focus {
-  border-color: #b398cc;
+  border-color: #a3a3a3;
 }
 .modal-buttons {
   display: flex;
@@ -1204,9 +1180,9 @@ button svg {
   width: 24px;
   height: 24px;
   min-width: 24px;
-  border: 1px solid #705b80;
+  border: 1px solid #737373;
   border-radius: 50%;
-  color: #bda5ce;
+  color: #a3a3a3;
   font-size: 11px;
 }
 .connect-step strong {
@@ -1215,30 +1191,30 @@ button svg {
 }
 .connect-step p {
   font-size: 12px;
-  color: #9f8fac;
+  color: #a3a3a3;
   margin: 5px 0 10px;
   line-height: 1.6;
 }
 .connect-step code {
   display: block;
-  background: #1b1920;
+  background: #171717;
   padding: 10px 12px;
-  border: 1px solid #3e3348;
+  border: 1px solid #262626;
   border-radius: 6px;
   font-size: 11px;
   line-height: 1.9;
-  color: #baa4cd;
+  color: #a3a3a3;
 }
 .connect-step a {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #bca1d3;
+  color: #a3a3a3;
   margin-top: 9px;
 }
 .connect-content details {
-  color: #9f8bad;
+  color: #a3a3a3;
   font-size: 11px;
 }
 .connect-content details label {
@@ -1557,5 +1533,62 @@ button svg {
 @media (max-width: 800px) {
   .sidebar:not(.mobile-open) {
     visibility: hidden;
+  }
+}
+
+/* Neutral shadcn surfaces; retain semantic Git and diff colors. */
+.app-shell,
+.main,
+.diff-pane,
+.diff-content {
+  background: var(--background);
+}
+.sidebar,
+.toolbar,
+.history-heading,
+.commit-list,
+.project-tabs,
+.files-pane,
+.change-summary,
+.diff-toolbar,
+.workspace-tabs,
+.statusbar,
+.demo-banner {
+  background: #171717;
+  border-color: var(--border);
+}
+.sidebar {
+  padding-top: 18px;
+}
+.project-heading {
+  min-height: 36px;
+}
+.project-tab.active,
+.tree-row.selected,
+.commit-row.selected,
+.workspace-tabs > div:first-child > button.selected,
+.primary-nav button.active {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.project-tab.active {
+  border-bottom-color: var(--foreground);
+}
+.switch[data-state="checked"] {
+  background: var(--primary);
+}
+.switch-thumb {
+  background: #171717;
+}
+.diff-controls button.active-control {
+  background: var(--accent);
+  color: var(--foreground);
+}
+@media (max-width: 800px) {
+  .project-heading {
+    gap: 6px;
+  }
+  .project-heading > span {
+    flex: 1;
   }
 }

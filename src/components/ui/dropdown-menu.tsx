@@ -18,7 +18,7 @@ export function Dropdown({
       <Menu.Portal>
         <Menu.Content
           sideOffset={5}
-          className="z-50 min-w-44 rounded-lg border border-white/10 bg-[#302b36] p-1 shadow-xl"
+          className="z-50 min-w-44 rounded-lg border border-white/10 bg-[#171717] p-1 shadow-xl"
         >
           {items.map((item, i) => (
             <Menu.Item

@@ -12,7 +12,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Code2,
   FileDiff,
   Folder,
   FolderOpen,
@@ -27,7 +26,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  ShieldCheck,
   Tag,
   X,
   Github,
@@ -480,14 +478,8 @@ export function App() {
     <div className="app-shell">
       <Toaster theme="dark" position="bottom-right" richColors closeButton />
       <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
-        <div className="brand">
-          <span className="brand-mark">
-            <Code2 size={19} />
-          </span>
-          <span>
-            diffs<span className="brand-period">.</span>
-          </span>
-          <span className="local-label">LOCAL</span>
+        <div className="project-heading">
+          <span>{state.project.name}</span>
           <Button
             variant="ghost"
             size="icon"
@@ -497,9 +489,6 @@ export function App() {
           >
             <X size={16} />
           </Button>
-        </div>
-        <div className="project-heading">
-          <span>{state.project.name}</span>
           <Dropdown
             trigger={
               <button className="icon-button" aria-label="Project settings">
@@ -847,18 +836,6 @@ export function App() {
               <div className="nav-empty">No stashed changes</div>
             )}
           </Section>
-        </div>
-        <div className="sidebar-bottom">
-          <ShieldCheck size={15} />
-          <span>Your code stays local</span>
-          <a
-            href="https://github.com/Davidkle/diffs-workbench"
-            target="_blank"
-            rel="noreferrer"
-            title="Open source on GitHub"
-          >
-            <Github size={15} />
-          </a>
         </div>
       </aside>
       <main className="main">
@@ -1291,9 +1268,6 @@ export function App() {
             <HardDrive size={12} />
             {connected ? "Local filesystem" : "Preview"}
           </span>
-          <a href="https://diffs.com" target="_blank" rel="noreferrer">
-            Powered by diffs.com <ExternalLink size={10} />
-          </a>
         </footer>
       </main>
       <Dialog
