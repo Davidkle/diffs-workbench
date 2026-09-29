@@ -184,6 +184,7 @@ app.get("/projects/:id/files", async (req, res) => {
     await changedFiles(
       project.path,
       typeof req.query.commit === "string" ? req.query.commit : undefined,
+      typeof req.query.base === "string" ? req.query.base : undefined,
     ),
   );
 });
@@ -205,10 +206,20 @@ app.get("/projects/:id/tree", async (req, res) => {
   res.json([...new Set(raw.split("\0").filter(Boolean))].sort());
 });
 app.get("/projects/:id/file", async (req, res) => {
-  const { path: name, commit } = z
-    .object({ path: z.string(), commit: z.string().optional() })
+  const {
+    path: name,
+    commit,
+    base,
+  } = z
+    .object({
+      path: z.string(),
+      commit: z.string().optional(),
+      base: z.string().optional(),
+    })
     .parse(req.query);
-  res.json(await fileContent(projectFor(req.params.id).path, name, commit));
+  res.json(
+    await fileContent(projectFor(req.params.id).path, name, commit, base),
+  );
 });
 const actionSchema = z.object({
   action: z.enum([

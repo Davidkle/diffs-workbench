@@ -20,6 +20,8 @@ The first release is unsigned and not notarized by Apple, so macOS may block a d
 - Working-tree changes, full-file context, unified/split diffs, line wrapping, and syntax highlighting
 - Hierarchical changed-file tree, file filtering, and complete repository file browsing
 - Recent commit history (latest 150 commits), commit details, and historical file diffs
+- Multi-select commits with Shift-click or Cmd/Ctrl-click; select two to compare their snapshots
+- Resizable sidebar, commit history, and file tree with saved panel sizes
 - Create, switch, rename, and safely delete local branches
 - Create, open, move, and safely remove worktrees
 - Fetch, fast-forward pull, push to origin, and optional automatic sync

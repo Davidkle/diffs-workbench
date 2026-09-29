@@ -113,3 +113,33 @@ test("sync fetches but never changes a dirty worktree", async () => {
     await rm(remote, { recursive: true, force: true });
   }
 });
+
+test("two selected commits compare exact endpoints, including non-adjacent changes", async () => {
+  const dir = await fixture();
+  try {
+    const base = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await writeFile(path.join(dir, "hello.ts"), "middle\n");
+    await writeFile(path.join(dir, "added.ts"), "added\n");
+    await git(dir, ["add", "."]);
+    await git(dir, ["commit", "-m", "Middle"]);
+    await writeFile(path.join(dir, "hello.ts"), "latest\n");
+    await git(dir, ["commit", "-am", "Latest"]);
+    const target = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    const changes = await changedFiles(dir, target, base);
+    assert.deepEqual(changes.map((f) => f.path).sort(), [
+      "added.ts",
+      "hello.ts",
+    ]);
+    const file = await fileContent(dir, "hello.ts", target, base);
+    assert.match(file.old, /world/);
+    assert.equal(file.current, "latest\n");
+    assert.equal((await fileContent(dir, "added.ts", target, base)).old, "");
+    const reverse = await changedFiles(dir, base, target);
+    assert.equal(reverse.find((f) => f.path === "added.ts")?.status, "D");
+    assert.deepEqual(await changedFiles(dir, target, target), []);
+    await assert.rejects(changedFiles(dir, target, "--help"), /Invalid commit/);
+    await assert.rejects(changedFiles(dir, undefined, base), /target commit/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

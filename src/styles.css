@@ -1733,3 +1733,95 @@ button svg {
     font-size: 9px;
   }
 }
+
+/* Clear selection contrast, matching the native Git-client reference. */
+.commit-row,
+.tree-row {
+  user-select: none;
+}
+.commit-row.selected,
+.commit-row.selected:hover,
+.tree-row.selected,
+.tree-row.selected:hover {
+  background: #0759cb;
+  color: #fff;
+}
+.commit-row.selected code,
+.commit-row.selected time,
+.commit-row.selected .commit-author,
+.tree-row.selected .file-icon,
+.tree-row.selected .folder {
+  color: #f0f6ff;
+}
+.commit-row.selected .avatar {
+  background: #004399;
+  color: #fff;
+}
+.commit-row.selected + .commit-row.selected {
+  border-top: 1px solid #ffffff1a;
+}
+.commit-row:focus-visible,
+.tree-row:focus-visible {
+  outline: 2px solid #9bc6ff;
+  outline-offset: -2px;
+}
+.primary-nav button.active,
+.project-tab.active,
+.workspace-tabs > div:first-child > button.selected {
+  background: #404040;
+  color: #fff;
+}
+.commit-selection-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  color: #b8b8b8;
+}
+.commit-selection-empty h2 {
+  font-size: 18px;
+  color: #fff;
+  font-weight: 600;
+}
+.selection-hint {
+  font-size: 11px;
+  color: #a3a3a3;
+}
+
+.history,
+.history-heading,
+.commit-list {
+  background: #262626;
+}
+.commit-row:not(.selected):hover {
+  background: #363636;
+}
+.files-pane,
+.file-filter,
+.files-footer {
+  background: #262626;
+}
+.tree-row:not(.selected):hover {
+  background: #363636;
+}
+
+.graph-node:before {
+  width: 2px;
+  background: #ff9d00;
+}
+.graph-node > span {
+  width: 6px;
+  height: 6px;
+  background: #ff9d00;
+}
+.local-change-options {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

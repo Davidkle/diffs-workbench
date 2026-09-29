@@ -82,12 +82,15 @@ function addStats(files: ChangedFile[], stats: string) {
 export async function changedFiles(
   cwd: string,
   commit?: string,
+  base?: string,
 ): Promise<ChangedFile[]> {
+  if (base && !commit) throw new Error("A target commit is required");
   if (commit) {
     await validateCommit(cwd, commit);
-    const parent = (
-      await optional(cwd, ["rev-parse", "--verify", `${commit}^`])
-    ).trim();
+    if (base) await validateCommit(cwd, base);
+    const parent =
+      base ||
+      (await optional(cwd, ["rev-parse", "--verify", `${commit}^`])).trim();
     const comparison = parent
       ? ["diff", parent, commit]
       : ["diff-tree", "--root", "--no-commit-id", "-r", commit];
@@ -275,15 +278,16 @@ export async function fileContent(
   cwd: string,
   name: string,
   commit?: string,
+  base?: string,
 ): Promise<FileContent> {
   const target = await safeFile(cwd, name);
-  const files = await changedFiles(cwd, commit);
+  const files = await changedFiles(cwd, commit, base);
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
   const oldName = changed?.oldPath || name;
   const old = await optional(cwd, [
     "show",
-    `${commit ? `${commit}^` : "HEAD"}:${oldName}`,
+    `${base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
   ]);
   let current = "";
   if (commit) current = await optional(cwd, ["show", `${commit}:${name}`]);

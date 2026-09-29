@@ -54,17 +54,17 @@ export const bridge = {
   add: (path: string) => request<Project>("/projects", "POST", { path }),
   remove: (id: string) => request<{ ok: boolean }>(`/projects/${id}`, "DELETE"),
   snapshot: (id: string) => request<Snapshot>(`/projects/${id}`),
-  files: (id: string, commit?: string) =>
+  files: (id: string, commit?: string, base?: string) =>
     request<ChangedFile[]>(
-      `/projects/${id}/files${commit ? `?commit=${commit}` : ""}`,
+      `/projects/${id}/files${commit ? `?commit=${commit}${base ? `&base=${base}` : ""}` : ""}`,
     ),
   tree: (id: string, commit?: string) =>
     request<string[]>(
       `/projects/${id}/tree${commit ? `?commit=${commit}` : ""}`,
     ),
-  file: (id: string, path: string, commit?: string) =>
+  file: (id: string, path: string, commit?: string, base?: string) =>
     request<FileContent>(
-      `/projects/${id}/file?path=${encodeURIComponent(path)}${commit ? `&commit=${commit}` : ""}`,
+      `/projects/${id}/file?path=${encodeURIComponent(path)}${commit ? `&commit=${commit}` : ""}${base ? `&base=${base}` : ""}`,
     ),
   action: (id: string, action: Action, input: Record<string, string> = {}) =>
     request<{ message: string }>(`/projects/${id}/action`, "POST", {

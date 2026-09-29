@@ -1,6 +1,6 @@
 {
   "name": "diffs-workbench",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "bridge": "tsx bridge/server.ts",
     "build": "tsc -b && vite build && npm run build:bridge",
     "build:bridge": "esbuild bridge/server.ts --bundle --platform=node --format=esm --packages=external --outfile=build/bridge.mjs",
-    "test": "node --import tsx --test bridge/*.test.ts",
+    "test": "node --import tsx --test bridge/*.test.ts src/*.test.ts",
     "preview": "vite preview --host 127.0.0.1",
     "ts-check": "tsc --noEmit",
     "lint": "eslint src bridge",

@@ -35,6 +35,7 @@ import { Toaster, toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Dropdown } from "@/components/ui/dropdown-menu";
+import { CommitHistory } from "@/components/CommitHistory";
 import { BranchTree } from "@/components/BranchTree";
 import { FileTree } from "@/components/FileTree";
 import { WorkspaceLayout } from "@/components/WorkspaceLayout";
@@ -112,7 +113,14 @@ export function App() {
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState("");
   const [syncText, setSyncText] = useState("Example workspace");
-  const [commit, setCommit] = useState<string>();
+  const [selectedCommits, setSelectedCommits] = useState<string[]>([]);
+  const historySelection = state.commits.filter((c) =>
+    selectedCommits.includes(c.hash),
+  );
+  const commit = historySelection[0]?.hash;
+  const comparisonBase =
+    historySelection.length === 2 ? historySelection[1].hash : undefined;
+  const manyCommits = historySelection.length > 2;
   const [files, setFiles] = useState<ChangedFile[]>(demo.files);
   const [selected, setSelected] = useState("src/workspace.tsx");
   const [content, setContent] = useState<FileContent | null>(demoContent);
@@ -127,6 +135,7 @@ export function App() {
   );
   const [mobileNav, setMobileNav] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
+  const [view, setView] = useState<"changes" | "history">("changes");
   const [modal, setModal] = useState<Modal | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [modalError, setModalError] = useState("");
@@ -215,7 +224,7 @@ export function App() {
         tags: [],
         remotes: [],
       });
-      setCommit(undefined);
+      setSelectedCommits([]);
       setFiles([]);
       setSelected("");
       setContent(null);
@@ -248,7 +257,8 @@ export function App() {
   );
   useEffect(() => {
     if (!connected || !active) return;
-    setCommit(undefined);
+    setSelectedCommits([]);
+    setView("changes");
     setSelected("");
     setContent(null);
     setFiles([]);
@@ -286,10 +296,13 @@ export function App() {
     };
   }, [connected, active, autoSync, refresh, doSync]);
   useEffect(() => {
-    if (!connected || !active || state.project.id !== active) return;
+    if (!connected || !active || state.project.id !== active || manyCommits)
+      return;
     let ignore = false;
     async function load() {
-      const changed = commit ? await bridge.files(active, commit) : state.files;
+      const changed = commit
+        ? await bridge.files(active, commit, comparisonBase)
+        : state.files;
       const list =
         mode === "tree"
           ? (await bridge.tree(active, commit)).map(
@@ -314,18 +327,18 @@ export function App() {
     return () => {
       ignore = true;
     };
-  }, [connected, active, state, commit, mode]);
+  }, [connected, active, state, commit, comparisonBase, manyCommits, mode]);
   useEffect(() => {
     if (!connected || !active) return;
     let ignore = false;
-    if (!selected) {
+    if (!selected || manyCommits) {
       setContent(null);
       return;
     }
     if (!contentRef.current || contentRef.current.path !== selected)
       setFileLoading(true);
     bridge
-      .file(active, selected, commit)
+      .file(active, selected, commit, comparisonBase)
       .then((next) => {
         if (!ignore)
           setContent((previous) =>
@@ -344,7 +357,15 @@ export function App() {
     return () => {
       ignore = true;
     };
-  }, [connected, active, selected, commit, revision]);
+  }, [
+    connected,
+    active,
+    selected,
+    commit,
+    comparisonBase,
+    manyCommits,
+    revision,
+  ]);
   const requireConnection = () => {
     if (connected) return true;
     showModal({
@@ -398,18 +419,18 @@ export function App() {
     setActive(id);
     setMobileNav(false);
   };
-  const selectCommit = (hash?: string) => {
-    if (!connected) {
-      toast(
-        "This is an example. Connect your repositories to explore real history.",
-      );
-      return;
-    }
-    setCommit(hash);
+  const selectCommits = (ids: string[]) => {
+    setSelectedCommits(ids);
     setMode("changes");
     setSelected("");
     setContent(null);
+    setFiles(!connected && !ids.length ? demo.files : []);
+    if (!connected && !ids.length) {
+      setSelected(demoContent.path);
+      setContent(demoContent);
+    }
   };
+  const selectCommit = (hash?: string) => selectCommits(hash ? [hash] : []);
   const selectFile = (path: string) => {
     if (!connected) {
       setSelected(path);
@@ -453,7 +474,8 @@ export function App() {
       setBusy("");
     }
   };
-  const currentCommit = state.commits.find((c) => c.hash === commit);
+  const currentCommit =
+    historySelection.length === 1 ? historySelection[0] : undefined;
   const currentIndex = files.findIndex((f) => f.path === selected);
   const changedCount = state.files.length;
   const additions = files.reduce((sum, f) => sum + f.additions, 0);
@@ -486,6 +508,19 @@ export function App() {
         ],
       });
   };
+  const autoSyncControl = (
+    <label className="auto-sync" title={syncText}>
+      <Switch.Root
+        checked={autoSync}
+        onCheckedChange={setAutoSync}
+        className="switch"
+        aria-label="Auto sync"
+      >
+        <Switch.Thumb className="switch-thumb" />
+      </Switch.Root>
+      Auto sync
+    </label>
+  );
   return (
     <div className="app-shell">
       <Toaster theme="dark" position="bottom-right" richColors closeButton />
@@ -540,16 +575,20 @@ export function App() {
             </div>
             <nav className="primary-nav">
               <button
-                className={!commit ? "active" : ""}
-                onClick={() => selectCommit()}
+                className={view === "changes" ? "active" : ""}
+                onClick={() => {
+                  setView("changes");
+                  selectCommit();
+                }}
               >
                 <FileDiff size={16} />
                 <span>Local Changes</span>
                 <span className="count">{changedCount}</span>
               </button>
               <button
-                className={commit ? "active" : ""}
+                className={view === "history" ? "active" : ""}
                 onClick={() => {
+                  setView("history");
                   setShowHistory(true);
                   if (state.commits[0]) selectCommit(state.commits[0].hash);
                 }}
@@ -1011,7 +1050,7 @@ export function App() {
           <WorkspaceLayout
             kind="history"
             leading={
-              showHistory ? (
+              showHistory && view === "history" ? (
                 <section className="history">
                   <div className="history-heading">
                     <span>
@@ -1029,96 +1068,65 @@ export function App() {
                       <ChevronDown size={14} />
                     </button>
                   </div>
-                  <div className="commit-list">
-                    {state.commits.map((c, i) => (
-                      <button
-                        className={`commit-row ${commit === c.hash ? "selected" : ""}`}
-                        key={c.hash}
-                        onClick={() => selectCommit(c.hash)}
-                      >
-                        <span className={`graph-node graph-${i % 3}`}>
-                          <span />
-                        </span>
-                        <span className="commit-subject">
-                          {c.refs && (
-                            <span className="branch-label" title={c.refs}>
-                              <GitBranch size={10} />
-                              {c.refs.includes("HEAD")
-                                ? state.branch
-                                : c.refs.split(",")[0]}
-                            </span>
-                          )}
-                          {c.subject}
-                        </span>
-                        <span className="commit-author">
-                          <span className="avatar">{initials(c.author)}</span>
-                          {c.author}
-                        </span>
-                        <code>{c.short}</code>
-                        <time title={c.date}>
-                          {new Date(c.date).toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </time>
-                      </button>
-                    ))}
-                    {!state.commits.length && (
-                      <div className="history-empty">
-                        No commits yet. Your local changes appear below.
-                      </div>
-                    )}
-                  </div>
+                  <CommitHistory
+                    key={state.project.id}
+                    commits={state.commits}
+                    branch={state.branch}
+                    selected={selectedCommits}
+                    onSelect={selectCommits}
+                  />
                 </section>
               ) : null
             }
           >
-            <div className="workspace-tabs">
-              <div>
-                {(["commit", "changes", "tree"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    className={mode === tab ? "selected" : ""}
-                    onClick={() => setMode(tab)}
-                  >
-                    {tab === "commit"
-                      ? "Commit"
-                      : tab === "changes"
-                        ? "Changes"
-                        : "File Tree"}
-                    {tab === "changes" && <span>{files.length}</span>}
-                  </button>
-                ))}
+            {view === "history" && (
+              <div className="workspace-tabs">
+                <div>
+                  {(["commit", "changes", "tree"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      className={mode === tab ? "selected" : ""}
+                      onClick={() => setMode(tab)}
+                    >
+                      {tab === "commit"
+                        ? "Commit"
+                        : tab === "changes"
+                          ? "Changes"
+                          : "File Tree"}
+                      {tab === "changes" && <span>{files.length}</span>}
+                    </button>
+                  ))}
+                </div>
+                <div className="workspace-options">
+                  {!showHistory && view === "history" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowHistory(true)}
+                    >
+                      <History size={14} />
+                      History
+                    </Button>
+                  )}
+                  <span className="diff-stat add">+{additions}</span>
+                  <span className="diff-stat remove">−{deletions}</span>
+                  <span className="separator" />
+                  {autoSyncControl}
+                </div>
               </div>
-              <div className="workspace-options">
-                {!showHistory && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowHistory(true)}
-                  >
-                    <History size={14} />
-                    History
-                  </Button>
-                )}
-                <span className="diff-stat add">+{additions}</span>
-                <span className="diff-stat remove">−{deletions}</span>
-                <span className="separator" />
-                <label className="auto-sync">
-                  <Switch.Root
-                    checked={autoSync}
-                    onCheckedChange={setAutoSync}
-                    className="switch"
-                    aria-label="Auto sync"
-                  >
-                    <Switch.Thumb className="switch-thumb" />
-                  </Switch.Root>
-                  Auto sync
-                </label>
-              </div>
-            </div>
+            )}
             <div className="change-summary">
-              {currentCommit ? (
+              {historySelection.length > 1 ? (
+                <>
+                  <GitCommitHorizontal size={16} />
+                  <strong>{historySelection.length} commits selected</strong>
+                  <span className="summary-message">
+                    {comparisonBase
+                      ? `${comparisonBase.slice(0, 7)} → ${commit?.slice(0, 7)}`
+                      : "Select two commits to compare"}
+                  </span>
+                </>
+              ) : currentCommit ? (
                 <>
                   <span className="avatar">
                     {initials(currentCommit.author)}
@@ -1144,11 +1152,44 @@ export function App() {
                   </span>
                 </>
               )}
-              <span className="summary-right">
-                {commit ? "Committed changes" : "Uncommitted changes"}
-              </span>
+              {view === "changes" ? (
+                <div className="local-change-options">
+                  <span className="diff-stat add">+{additions}</span>
+                  <span className="diff-stat remove">−{deletions}</span>
+                  {autoSyncControl}
+                </div>
+              ) : (
+                <span className="summary-right">Committed changes</span>
+              )}
             </div>
-            {mode === "commit" ? (
+            {manyCommits || (!connected && !!commit) ? (
+              <div className="commit-selection-empty">
+                <GitCommitHorizontal size={40} />
+                <h2>
+                  {historySelection.length}{" "}
+                  {historySelection.length === 1 ? "commit" : "commits"}{" "}
+                  selected
+                </h2>
+                <p>
+                  {connected
+                    ? "Select two commits to see the difference between them."
+                    : "Connect a project to compare real commits."}
+                </p>
+                <p className="selection-hint">
+                  Shift-click for a range · ⌘ / Ctrl-click to add or remove
+                </p>
+              </div>
+            ) : mode === "commit" && comparisonBase ? (
+              <div className="commit-selection-empty">
+                <h2>Comparing two commits</h2>
+                <p>
+                  {comparisonBase.slice(0, 7)} → {commit?.slice(0, 7)}
+                </p>
+                <Button variant="outline" onClick={() => setMode("changes")}>
+                  View changed files
+                </Button>
+              </div>
+            ) : mode === "commit" ? (
               <div className="commit-details">
                 <GitCommitHorizontal size={32} />
                 <h2>{currentCommit?.subject || "Commit your changes"}</h2>
@@ -1269,31 +1310,6 @@ export function App() {
               </WorkspaceLayout>
             )}
           </WorkspaceLayout>
-          <footer className="statusbar">
-            <span>
-              <GitBranch size={12} />
-              {state.branch}
-            </span>
-            <span>
-              <ArrowDown size={11} />
-              {state.behind}
-              <ArrowUp size={11} />
-              {state.ahead}
-            </span>
-            <span className="status-message">
-              {busy ? (
-                <>
-                  <Loader2 size={12} className="animate-spin" />
-                  {busy}
-                </>
-              ) : (
-                <>
-                  <span className={connected ? "status-dot" : "preview-dot"} />
-                  {syncText}
-                </>
-              )}
-            </span>
-          </footer>
         </main>
       </WorkspaceLayout>
       <Dialog
@@ -1308,7 +1324,7 @@ export function App() {
           <div className="connect-content">
             <a
               className="desktop-download"
-              href="https://github.com/Davidkle/diffs-workbench/releases/latest/download/Diffs-0.1.2-arm64.zip"
+              href="https://github.com/Davidkle/diffs-workbench/releases/latest/download/Diffs-0.1.3-arm64.zip"
               target="_blank"
               rel="noreferrer"
             >
