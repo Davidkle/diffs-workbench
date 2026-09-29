@@ -65,9 +65,15 @@ export const bridge = {
     request<string[]>(
       `/projects/${id}/tree${commit ? `?commit=${commit}` : ""}`,
     ),
-  file: (id: string, path: string, commit?: string, base?: string) =>
+  file: (
+    id: string,
+    path: string,
+    commit?: string,
+    base?: string,
+    layer?: "staged" | "unstaged",
+  ) =>
     request<FileContent>(
-      `/projects/${id}/file?path=${encodeURIComponent(path)}${commit ? `&commit=${commit}` : ""}${base ? `&base=${base}` : ""}`,
+      `/projects/${id}/file?path=${encodeURIComponent(path)}${commit ? `&commit=${commit}` : ""}${base ? `&base=${base}` : ""}${layer ? `&layer=${layer}` : ""}`,
     ),
   action: (id: string, action: Action, input: Record<string, string> = {}) =>
     request<{ message: string }>(`/projects/${id}/action`, "POST", {

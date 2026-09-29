@@ -111,6 +111,24 @@ button svg {
   padding: 4px 17px 9px 21px;
   font-weight: 600;
   font-size: 13px;
+  gap: 8px;
+}
+.project-heading > span,
+.primary-nav button > span:not(.count),
+.sidebar-switch > span:not(.flex-1),
+.section-header > button:first-child > span,
+.nav-empty {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.project-heading > button,
+.primary-nav .count,
+.section-add,
+.nav-row small {
+  flex-shrink: 0;
 }
 .icon-button {
   padding: 2px;
@@ -191,6 +209,7 @@ button svg {
 }
 .sidebar-scroll {
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   padding: 0 10px;
 }
@@ -206,6 +225,7 @@ button svg {
 }
 .section-header > button:first-child {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 6px;
   font-size: 11px;
@@ -246,6 +266,7 @@ button svg {
   text-align: left;
 }
 .nav-row > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -322,6 +343,11 @@ button svg {
   gap: 5px;
   color: #d4d4d4;
   min-width: 28px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 .tool > span {
   display: flex;
@@ -337,11 +363,14 @@ button svg {
   letter-spacing: 0.15px;
   color: #a3a3a3;
 }
-.tool:hover {
-  color: #d4d4d4;
+.tool:not(:disabled):hover,
+.tool:focus-visible {
+  background: #363636;
+  color: #fafafa;
 }
-.tool:hover small {
-  color: #d4d4d4;
+.tool:not(:disabled):hover small,
+.tool:focus-visible small {
+  color: #fafafa;
 }
 .tool:disabled {
   opacity: 0.35;
@@ -966,8 +995,8 @@ button svg {
   overflow: auto;
 }
 .diff-content diffs-container {
-  --diffs-font-size: 14px;
-  --diffs-line-height: 23px;
+  --diffs-font-size: 12px;
+  --diffs-line-height: 19px;
   display: block;
 }
 .empty {
@@ -1878,4 +1907,123 @@ button svg {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+}
+
+.staging-tree {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.staging-section {
+  flex: 1;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.staging-section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: #303030;
+  border-block: 1px solid var(--border);
+  font-size: 12px;
+}
+.staging-section > header small {
+  color: #a3a3a3;
+  margin-left: 5px;
+}
+.staging-section > header button {
+  font-size: 11px;
+}
+.diff-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.diff-workspace > .diff-pane {
+  flex: 1;
+  min-height: 0;
+}
+.commit-form {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: #262626;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.commit-form input,
+.commit-form textarea {
+  width: 100%;
+  background: #171717;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.commit-form textarea {
+  resize: vertical;
+  max-height: 140px;
+}
+.commit-form > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #a3a3a3;
+  font-size: 11px;
+}
+.svg-preview {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #262626;
+  border-bottom: 1px solid var(--border);
+}
+.svg-preview figure {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.svg-preview figcaption {
+  margin-bottom: 6px;
+  color: #d4d4d4;
+  font-size: 12px;
+}
+.svg-image {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #404040;
+  border-radius: 5px;
+  background-color: #ddd;
+  background-image: conic-gradient(
+    #bbb 25%,
+    transparent 0 50%,
+    #bbb 0 75%,
+    transparent 0
+  );
+  background-size: 16px 16px;
+}
+.svg-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.svg-image span {
+  color: #333;
+  background: #ddd;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+@media (max-width: 540px) {
+  .svg-image {
+    height: 140px;
+  }
 }

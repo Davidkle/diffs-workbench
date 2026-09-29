@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readFile, rm, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  rm,
+  realpath,
+} from "node:fs/promises";
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -107,6 +114,58 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
       await readFile(path.join(repo, "file.txt"), "utf8"),
       "changed\n",
     );
+    await assert.rejects(
+      action("commit", { name: "Nothing staged" }),
+      /Stage changes/,
+    );
+    await action("stage", { path: "file.txt" });
+    await writeFile(path.join(repo, "file.txt"), "unstaged follow-up\n");
+    const partial = (await api(`/projects/${id}`)).files.find(
+      (file: { path: string }) => file.path === "file.txt",
+    );
+    assert.equal(partial.staged, true);
+    assert.equal(partial.unstaged, true);
+    const staged = await api(`/projects/${id}/file?path=file.txt&layer=staged`);
+    const unstaged = await api(
+      `/projects/${id}/file?path=file.txt&layer=unstaged`,
+    );
+    assert.equal(staged.old, "initial\n");
+    assert.equal(staged.current, "changed\n");
+    assert.equal(unstaged.old, "changed\n");
+    assert.equal(unstaged.current, "unstaged follow-up\n");
+    await action("commit", { name: "Only staged changes" });
+    assert.equal(await git(repo, ["show", "HEAD:file.txt"]), "changed\n");
+    assert.equal(
+      await readFile(path.join(repo, "file.txt"), "utf8"),
+      "unstaged follow-up\n",
+    );
+    await mkdir(path.join(repo, "folder"));
+    await writeFile(path.join(repo, "folder/a.txt"), "a\n");
+    await writeFile(path.join(repo, "folder/b.txt"), "b\n");
+    await writeFile(path.join(repo, "folder-sibling.txt"), "sibling\n");
+    await action("stage", { path: "folder" });
+    assert.deepEqual(
+      (await git(repo, ["diff", "--cached", "--name-only"])).trim().split("\n"),
+      ["folder/a.txt", "folder/b.txt"],
+    );
+    await action("unstage", { path: "folder" });
+    assert.equal(await git(repo, ["diff", "--cached", "--name-only"]), "");
+    assert.equal(
+      await readFile(path.join(repo, "folder/a.txt"), "utf8"),
+      "a\n",
+    );
+    await writeFile(path.join(repo, ":(glob)*"), "literal\n");
+    await action("stage", { path: ":(glob)*" });
+    assert.equal(
+      (await git(repo, ["diff", "--cached", "--name-only"])).trim(),
+      ":(glob)*",
+    );
+    await action("unstage", { path: ":(glob)*" });
+    await assert.rejects(
+      action("stage", { path: "../outside" }),
+      /Invalid file/,
+    );
+    await action("stage", { path: "." });
     await action("commit", { name: "Updated" });
     await action("push");
     await action("pull");

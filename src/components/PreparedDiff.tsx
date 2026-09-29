@@ -1,25 +1,105 @@
-import { memo, useEffect, useState, type ComponentProps } from "react";
-import { FileDiff, File } from "@pierre/diffs/react";
-import type { FileDiffMetadata } from "@pierre/diffs";
+import {
+  memo,
+  useEffect,
+  useState,
+  useRef,
+  useImperativeHandle,
+  type Ref,
+  type ComponentProps,
+} from "react";
+import { FileDiff, File, useVirtualizer } from "@pierre/diffs/react";
+import { VirtualizedFileDiff, type FileDiffMetadata } from "@pierre/diffs";
+import { changeTargets } from "@/change-navigation";
 import DiffWorker from "@/workers/diff.worker?worker&inline";
 import type { FileContent } from "@/types";
 
 type Props = {
+  ref?: Ref<ChangeNavigation>;
+  onChangesReady?: (count: number) => void;
   content: FileContent;
   options: ComponentProps<typeof FileDiff>["options"];
   fileMode?: boolean;
 };
+export type ChangeNavigation = { jump: (direction: -1 | 1) => void };
 /** Parsing runs in a disposable worker so switching away cancels expensive work. */
 export const PreparedDiff = memo(function PreparedDiff({
   content,
   options,
   fileMode,
+  ref,
+  onChangesReady,
 }: Props) {
+  const virtualizer = useVirtualizer();
+  const instance = useRef<VirtualizedFileDiff | null>(null);
+  const cursor = useRef<{
+    source: FileContent;
+    index: number;
+    scrollTop: number;
+  } | null>(null);
   const [result, setResult] = useState<{
     source: FileContent;
     diff?: FileDiffMetadata;
     error?: string;
   }>();
+  useEffect(() => {
+    onChangesReady?.(
+      !fileMode && result?.source === content && result.diff
+        ? changeTargets(result.diff).length
+        : 0,
+    );
+  }, [content, fileMode, result, onChangesReady]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      jump(direction) {
+        if (
+          fileMode ||
+          result?.source !== content ||
+          !result.diff ||
+          !instance.current ||
+          !virtualizer
+        )
+          return;
+        const view = instance.current;
+        const targets = changeTargets(result.diff);
+        if (!targets.length) return;
+        const positions = targets.map(
+          (target) =>
+            (view.top ?? 0) +
+            (view.getLinePosition(target.line, target.side)?.top ?? 0),
+        );
+        const scrollTop = virtualizer.getScrollTop();
+        const previous = cursor.current;
+        let index: number;
+        if (
+          previous?.source === content &&
+          Math.abs(previous.scrollTop - scrollTop) < 3
+        ) {
+          index =
+            (previous.index + direction + targets.length) % targets.length;
+        } else if (direction === 1) {
+          index = positions.findIndex((top) => top > scrollTop + 2);
+          if (index < 0) index = 0;
+        } else {
+          index = -1;
+          positions.forEach((top, candidate) => {
+            if (top < scrollTop - 2) index = candidate;
+          });
+          if (index < 0) index = targets.length - 1;
+        }
+        virtualizer.scrollTo({
+          top: Math.max(0, positions[index] - 8),
+          behavior: "instant",
+        });
+        cursor.current = {
+          source: content,
+          index,
+          scrollTop: virtualizer.getScrollTop(),
+        };
+      },
+    }),
+    [content, result, fileMode, virtualizer],
+  );
   useEffect(() => {
     if (fileMode) return;
     const worker = new DiffWorker();
@@ -88,6 +168,15 @@ export const PreparedDiff = memo(function PreparedDiff({
       </div>
     );
   return result.diff ? (
-    <FileDiff fileDiff={result.diff} options={options} />
+    <FileDiff
+      fileDiff={result.diff}
+      options={{
+        ...options,
+        onPostRender: (_node, rendered) => {
+          if (rendered instanceof VirtualizedFileDiff)
+            instance.current = rendered;
+        },
+      }}
+    />
   ) : null;
 });

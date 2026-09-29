@@ -38,6 +38,8 @@ import { Dropdown } from "@/components/ui/dropdown-menu";
 import { CommitHistory } from "@/components/CommitHistory";
 import { BranchTree } from "@/components/BranchTree";
 import { FileTree } from "@/components/FileTree";
+import { StagingTree, type StageLayer } from "@/components/StagingTree";
+import { CommitForm } from "@/components/CommitForm";
 import { WorkspaceLayout } from "@/components/WorkspaceLayout";
 import { DiffPane } from "@/components/DiffPane";
 import {
@@ -82,18 +84,31 @@ function Section({
   icon,
   children,
   action,
+  filtering = false,
+  hidden = false,
 }: {
   projectId: string;
   title: string;
   icon?: ReactNode;
   children: ReactNode;
   action?: ReactNode;
+  filtering?: boolean;
+  hidden?: boolean;
 }) {
-  const [open, setOpen] = usePersistentBoolean(projectId, "sections", title);
+  const [savedOpen, setOpen] = usePersistentBoolean(
+    projectId,
+    "sections",
+    title,
+  );
+  const open = filtering || savedOpen;
+  if (hidden) return null;
   return (
     <section className="nav-section">
       <div className="section-header">
-        <button aria-expanded={open} onClick={() => setOpen(!open)}>
+        <button
+          aria-expanded={open}
+          onClick={() => !filtering && setOpen(!open)}
+        >
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {icon}
           <span>{title}</span>
         </button>
@@ -140,9 +155,43 @@ export function App() {
   const [fileLoading, setFileLoading] = useState(false);
   const [full, setFull] = useState(false);
   const [split, setSplit] = useState(false);
+  const [stageLayer, setStageLayer] = useState<StageLayer>("unstaged");
   const [filter, setFilter] = useState("");
   const [navFilter, setNavFilter] = useState("");
+  const navQuery = navFilter.trim().toLowerCase();
+  const matchingProjects = projects.filter((p) =>
+    `${p.name} ${p.path}`.toLowerCase().includes(navQuery),
+  );
+  const matchingWorktrees = state.worktrees.filter((w) =>
+    `${w.path} ${w.branch}`.toLowerCase().includes(navQuery),
+  );
+  const matchingBranches = state.branches.filter((b) =>
+    b.name.toLowerCase().includes(navQuery),
+  );
+  const matchingRemotes = state.remotes.filter((name) =>
+    name.toLowerCase().includes(navQuery),
+  );
+  const matchingTags = state.tags.filter((name) =>
+    name.toLowerCase().includes(navQuery),
+  );
+  const matchingStashes = state.stashes.filter((stash) =>
+    `${stash.ref} ${stash.subject}`.toLowerCase().includes(navQuery),
+  );
   const [mode, setMode] = useState<"changes" | "tree" | "commit">("changes");
+  const [view, setView] = useState<"changes" | "history">("changes");
+  const localChanges = view === "changes" && !commit;
+  useEffect(() => {
+    if (!localChanges) return;
+    const file = files.find((file) => file.path === selected);
+    if (!file) return;
+    if (stageLayer === "staged" && !file.staged) setStageLayer("unstaged");
+    else if (
+      stageLayer === "unstaged" &&
+      !(file.unstaged ?? !file.staged) &&
+      file.staged
+    )
+      setStageLayer("staged");
+  }, [files, selected, stageLayer, localChanges]);
   const [autoSync, setAutoSync] = useState(
     () => localStorage.getItem("diffs-auto-sync") !== "false",
   );
@@ -152,7 +201,6 @@ export function App() {
     "panels",
     "history",
   );
-  const [view, setView] = useState<"changes" | "history">("changes");
   const [modal, setModal] = useState<Modal | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [modalError, setModalError] = useState("");
@@ -413,7 +461,13 @@ export function App() {
     if (!contentRef.current || contentRef.current.path !== selected)
       setFileLoading(true);
     bridge
-      .file(active, selected, commit, comparisonBase)
+      .file(
+        active,
+        selected,
+        commit,
+        comparisonBase,
+        localChanges ? stageLayer : undefined,
+      )
       .then((next) => {
         if (!ignore)
           setContent((previous) =>
@@ -445,6 +499,8 @@ export function App() {
     connected,
     active,
     selected,
+    stageLayer,
+    localChanges,
     commit,
     comparisonBase,
     manyCommits,
@@ -578,7 +634,6 @@ export function App() {
   };
   const currentCommit =
     historySelection.length === 1 ? historySelection[0] : undefined;
-  const currentIndex = files.findIndex((f) => f.path === selected);
   const changedCount = state.files.length;
   const additions = files.reduce((sum, f) => sum + f.additions, 0);
   const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
@@ -610,6 +665,15 @@ export function App() {
         ],
       });
   };
+  const openProjectMenuRef = useRef(openDialog);
+  useEffect(() => {
+    openProjectMenuRef.current = openDialog;
+  });
+  useEffect(
+    () =>
+      window.diffsDesktop?.onOpenProject?.(() => openProjectMenuRef.current()),
+    [],
+  );
   const autoSyncControl = (
     <label className="auto-sync" title={syncText}>
       <Switch.Root
@@ -642,39 +706,6 @@ export function App() {
               >
                 <X size={16} />
               </Button>
-              <Dropdown
-                trigger={
-                  <button className="icon-button" aria-label="Project settings">
-                    <MoreHorizontal size={17} />
-                  </button>
-                }
-                items={[
-                  { label: "Open repository…", onSelect: openDialog },
-                  ...(window.diffsDesktop
-                    ? []
-                    : [
-                        {
-                          label: "Connect local bridge…",
-                          onSelect: () =>
-                            showModal({
-                              kind: "connect",
-                              title: "Connect your computer",
-                              description:
-                                "Open your local projects in the Mac app.",
-                            }),
-                        },
-                      ]),
-                  {
-                    label: "Close project tab",
-                    disabled: !active,
-                    onSelect: () => {
-                      const remaining = openIds.filter((id) => id !== active);
-                      setOpenIds(remaining);
-                      setActive(remaining[0] || "");
-                    },
-                  },
-                ]}
-              />
             </div>
             <nav className="primary-nav">
               <button
@@ -699,25 +730,57 @@ export function App() {
                 <span>All Commits</span>
               </button>
             </nav>
-            <div className="sidebar-switch">
-              <GitBranch size={16} />
-              <span>Repository</span>
-              <span className="flex-1" />
-              <Search size={14} />
-            </div>
             <div className="sidebar-filter">
               <Search size={13} />
               <input
-                aria-label="Filter branches and worktrees"
-                placeholder="Filter"
+                aria-label="Search sidebar"
+                placeholder="Search"
                 value={navFilter}
                 onChange={(e) => setNavFilter(e.target.value)}
               />
             </div>
             <div className="sidebar-scroll">
+              {navQuery && matchingProjects.length > 0 && (
+                <Section
+                  projectId={active || "preview"}
+                  title="Projects"
+                  filtering
+                >
+                  {matchingProjects.map((project) => (
+                    <button
+                      key={project.id}
+                      className="nav-row"
+                      title={project.path}
+                      onClick={() => {
+                        openProject(project.id);
+                        setNavFilter("");
+                      }}
+                    >
+                      <Folder size={14} />
+                      <span>{project.name}</span>
+                      {project.id === active && (
+                        <span className="current-dot" />
+                      )}
+                    </button>
+                  ))}
+                </Section>
+              )}
+              {navQuery &&
+                !matchingProjects.length &&
+                !matchingWorktrees.length &&
+                !matchingBranches.length &&
+                !matchingRemotes.length &&
+                !matchingTags.length &&
+                !matchingStashes.length && (
+                  <div className="nav-empty" role="status">
+                    No matches found
+                  </div>
+                )}
               <Section
                 projectId={active || "preview"}
                 title="Worktrees"
+                filtering={!!navQuery}
+                hidden={!!navQuery && !matchingWorktrees.length}
                 action={
                   <button
                     className="section-add"
@@ -747,76 +810,74 @@ export function App() {
                   </button>
                 }
               >
-                {state.worktrees
-                  .filter((w) =>
-                    w.path.toLowerCase().includes(navFilter.toLowerCase()),
-                  )
-                  .map((w) => (
-                    <div className="nav-row-group" key={w.path}>
-                      <button
-                        className="nav-row"
-                        title={w.path}
-                        onClick={() => {
-                          if (!requireConnection()) return;
-                          bridge
-                            .add(w.path)
-                            .then(async (p) => {
-                              setProjects(await bridge.projects());
-                              openProject(p.id);
-                            })
-                            .catch((e) => toast.error(e.message));
-                        }}
-                      >
-                        <Folder size={14} />
-                        <span>{w.path.split("/").pop()}</span>
-                        {w.path === state.project.path && (
-                          <span className="current-dot" />
-                        )}
-                      </button>
-                      <Dropdown
-                        trigger={
-                          <button
-                            className="row-menu"
-                            aria-label={`Manage worktree ${w.path.split("/").pop()}`}
-                          >
-                            <MoreHorizontal size={13} />
-                          </button>
-                        }
-                        items={[
-                          {
-                            label: "Move worktree…",
-                            disabled: w.path === state.project.path,
-                            onSelect: () =>
-                              actionModal(
-                                "Move worktree",
-                                "worktree-move",
-                                [{ key: "path", label: "New path" }],
-                                { from: w.path },
-                                "The worktree will be moved to the new directory.",
-                              ),
-                          },
-                          {
-                            label: "Remove worktree…",
-                            danger: true,
-                            disabled: w.path === state.project.path,
-                            onSelect: () =>
-                              actionModal(
-                                "Remove worktree?",
-                                "worktree-remove",
-                                [],
-                                { from: w.path },
-                                "Remove this checkout. Git will refuse if it contains unsaved changes.",
-                                true,
-                              ),
-                          },
-                        ]}
-                      />
-                    </div>
-                  ))}
+                {matchingWorktrees.map((w) => (
+                  <div className="nav-row-group" key={w.path}>
+                    <button
+                      className="nav-row"
+                      title={w.path}
+                      onClick={() => {
+                        if (!requireConnection()) return;
+                        bridge
+                          .add(w.path)
+                          .then(async (p) => {
+                            setProjects(await bridge.projects());
+                            openProject(p.id);
+                          })
+                          .catch((e) => toast.error(e.message));
+                      }}
+                    >
+                      <Folder size={14} />
+                      <span>{w.path.split("/").pop()}</span>
+                      {w.path === state.project.path && (
+                        <span className="current-dot" />
+                      )}
+                    </button>
+                    <Dropdown
+                      trigger={
+                        <button
+                          className="row-menu"
+                          aria-label={`Manage worktree ${w.path.split("/").pop()}`}
+                        >
+                          <MoreHorizontal size={13} />
+                        </button>
+                      }
+                      items={[
+                        {
+                          label: "Move worktree…",
+                          disabled: w.path === state.project.path,
+                          onSelect: () =>
+                            actionModal(
+                              "Move worktree",
+                              "worktree-move",
+                              [{ key: "path", label: "New path" }],
+                              { from: w.path },
+                              "The worktree will be moved to the new directory.",
+                            ),
+                        },
+                        {
+                          label: "Remove worktree…",
+                          danger: true,
+                          disabled: w.path === state.project.path,
+                          onSelect: () =>
+                            actionModal(
+                              "Remove worktree?",
+                              "worktree-remove",
+                              [],
+                              { from: w.path },
+                              "Remove this checkout. Git will refuse if it contains unsaved changes.",
+                              true,
+                            ),
+                        },
+                      ]}
+                    />
+                  </div>
+                ))}
               </Section>
               <Section
                 projectId={active || "preview"}
                 title="Branches"
+                filtering={!!navQuery}
+                hidden={!!navQuery && !matchingBranches.length}
                 action={
                   <button
                     className="section-add"
@@ -843,10 +904,8 @@ export function App() {
               >
                 <BranchTree
                   projectId={active || "preview"}
-                  filtering={!!navFilter.trim()}
-                  branches={state.branches.filter((b) =>
-                    b.name.toLowerCase().includes(navFilter.toLowerCase()),
-                  )}
+                  filtering={!!navQuery}
+                  branches={matchingBranches}
                   renderBranch={(b) => (
                     <div className="nav-row-group" key={b.name}>
                       <button
@@ -915,8 +974,13 @@ export function App() {
                   )}
                 />
               </Section>
-              <Section projectId={active || "preview"} title="Remotes">
-                {state.remotes.map((r) => (
+              <Section
+                projectId={active || "preview"}
+                title="Remotes"
+                filtering={!!navQuery}
+                hidden={!!navQuery && !matchingRemotes.length}
+              >
+                {matchingRemotes.map((r) => (
                   <button
                     className="nav-row"
                     key={r}
@@ -931,9 +995,14 @@ export function App() {
                   <div className="nav-empty">No remotes configured</div>
                 )}
               </Section>
-              <Section projectId={active || "preview"} title="Tags">
-                {state.tags.length ? (
-                  state.tags.map((t) => (
+              <Section
+                projectId={active || "preview"}
+                title="Tags"
+                filtering={!!navQuery}
+                hidden={!!navQuery && !matchingTags.length}
+              >
+                {matchingTags.length ? (
+                  matchingTags.map((t) => (
                     <div className="nav-row" key={t}>
                       <Tag size={13} />
                       <span>{t}</span>
@@ -946,6 +1015,8 @@ export function App() {
               <Section
                 projectId={active || "preview"}
                 title="Stashes"
+                filtering={!!navQuery}
+                hidden={!!navQuery && !matchingStashes.length}
                 action={
                   <button
                     className="section-add"
@@ -970,8 +1041,8 @@ export function App() {
                   </button>
                 }
               >
-                {state.stashes.length ? (
-                  state.stashes.map((stash) => (
+                {matchingStashes.length ? (
+                  matchingStashes.map((stash) => (
                     <div className="nav-row-group" key={stash.ref}>
                       <span className="nav-row" title={stash.subject}>
                         <Archive size={13} />
@@ -1023,6 +1094,60 @@ export function App() {
         }
       >
         <main className="main">
+          <div className="project-tabs">
+            {(connected
+              ? projects.filter((p) => openIds.includes(p.id))
+              : [demo.project]
+            ).map((p) => (
+              <div
+                key={p.id}
+                className={`project-tab ${p.id === active || !connected ? "active" : ""}`}
+              >
+                <button onClick={() => openProject(p.id)}>
+                  <>
+                    {loadingProject === p.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Folder size={13} />
+                    )}
+                  </>
+                  {p.name}
+                </button>
+                <button
+                  className="tab-close"
+                  aria-label={`Close ${p.name} tab`}
+                  onClick={() => {
+                    const remaining = openIds.filter((id) => id !== p.id);
+                    setOpenIds(remaining);
+                    if (active === p.id) {
+                      if (remaining[0]) setActive(remaining[0]);
+                      else {
+                        setActive("");
+                        setFiles([]);
+                        setContent(null);
+                      }
+                    }
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+            <Dropdown
+              trigger={
+                <button className="add-tab" aria-label="Open project tab">
+                  <Plus size={17} />
+                </button>
+              }
+              items={[
+                ...projects.map((p) => ({
+                  label: p.name,
+                  onSelect: () => openProject(p.id),
+                })),
+                { label: "Open repository…", onSelect: openDialog },
+              ]}
+            />
+          </div>
           <header className="toolbar">
             <Button
               variant="ghost"
@@ -1034,8 +1159,12 @@ export function App() {
               <Menu size={18} />
             </Button>
             <div className="toolbar-actions">
-              <Tool icon={<FolderOpen />} label="Open" onClick={openDialog} />
-              <span className="toolbar-divider" />
+              {!window.diffsDesktop && (
+                <Dropdown
+                  trigger={<button className="tool">File</button>}
+                  items={[{ label: "Open project…", onSelect: openDialog }]}
+                />
+              )}
               <Tool
                 icon={<RefreshCw />}
                 label="Fetch"
@@ -1092,60 +1221,6 @@ export function App() {
               />
             </div>
           </header>
-          <div className="project-tabs">
-            {(connected
-              ? projects.filter((p) => openIds.includes(p.id))
-              : [demo.project]
-            ).map((p) => (
-              <div
-                key={p.id}
-                className={`project-tab ${p.id === active || !connected ? "active" : ""}`}
-              >
-                <button onClick={() => openProject(p.id)}>
-                  <>
-                    {loadingProject === p.id ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <Folder size={13} />
-                    )}
-                  </>
-                  {p.name}
-                </button>
-                <button
-                  className="tab-close"
-                  aria-label={`Close ${p.name} tab`}
-                  onClick={() => {
-                    const remaining = openIds.filter((id) => id !== p.id);
-                    setOpenIds(remaining);
-                    if (active === p.id) {
-                      if (remaining[0]) setActive(remaining[0]);
-                      else {
-                        setActive("");
-                        setFiles([]);
-                        setContent(null);
-                      }
-                    }
-                  }}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-            <Dropdown
-              trigger={
-                <button className="add-tab" aria-label="Open project tab">
-                  <Plus size={17} />
-                </button>
-              }
-              items={[
-                ...projects.map((p) => ({
-                  label: p.name,
-                  onSelect: () => openProject(p.id),
-                })),
-                { label: "Open repository…", onSelect: openDialog },
-              ]}
-            />
-          </div>
           {!connected && (
             <div className="demo-banner">
               <div>
@@ -1350,14 +1425,14 @@ export function App() {
                   ) : (
                     <>
                       <p>
-                        Stage all local changes and create a commit on{" "}
-                        <strong>{state.branch}</strong>.
+                        Commit staged changes on <strong>{state.branch}</strong>
+                        .
                       </p>
                       <Button
-                        disabled={!changedCount || !!busy}
+                        disabled={!files.some((file) => file.staged) || !!busy}
                         onClick={() =>
                           actionModal(
-                            "Commit all changes",
+                            "Commit staged changes",
                             "commit",
                             [
                               {
@@ -1367,7 +1442,7 @@ export function App() {
                               },
                             ],
                             {},
-                            "This stages and commits all current changes, including untracked files.",
+                            "Only staged changes will be included in this commit.",
                           )
                         }
                       >
@@ -1392,22 +1467,42 @@ export function App() {
                         />
                         <span>{files.length}</span>
                       </div>
-                      <div className="files-scroll">
-                        <FileTree
+                      {localChanges ? (
+                        <StagingTree
                           projectId={active || "preview"}
                           files={files}
                           selected={selected}
-                          onSelect={selectFile}
+                          layer={stageLayer}
                           filter={filter}
+                          busy={!!busy || !connected}
+                          onSelect={(path, layer) => {
+                            setStageLayer(layer);
+                            selectFile(path);
+                          }}
+                          onStage={(path, layer) =>
+                            run(layer === "staged" ? "unstage" : "stage", {
+                              path,
+                            })
+                          }
                         />
-                        {!files.length && (
-                          <div className="files-empty">
-                            {connected
-                              ? "No changed files"
-                              : "Connect a repository"}
-                          </div>
-                        )}
-                      </div>
+                      ) : (
+                        <div className="files-scroll">
+                          <FileTree
+                            projectId={active || "preview"}
+                            files={files}
+                            selected={selected}
+                            onSelect={selectFile}
+                            filter={filter}
+                          />
+                          {!files.length && (
+                            <div className="files-empty">
+                              {connected
+                                ? "No changed files"
+                                : "Connect a repository"}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="files-footer">
                         <Folder size={12} />
                         {mode === "tree" ? "All files" : "Changed files"}
@@ -1426,32 +1521,36 @@ export function App() {
                       <Button onClick={openDialog}>Choose folder</Button>
                     </div>
                   ) : (
-                    <DiffPane
-                      content={content}
-                      loading={fileLoading}
-                      full={full}
-                      setFull={setFull}
-                      split={split}
-                      setSplit={setSplit}
-                      fileMode={mode === "tree"}
-                      onResolve={(value) =>
-                        actionModal(
-                          "Save conflict resolution",
-                          "resolve",
-                          [],
-                          { path: selected, content: value },
-                          "Write your resolution to disk and stage this file.",
-                        )
-                      }
-                      onPrevious={() =>
-                        selectFile(files[currentIndex - 1].path)
-                      }
-                      onNext={() => selectFile(files[currentIndex + 1].path)}
-                      hasPrevious={currentIndex > 0}
-                      hasNext={
-                        currentIndex >= 0 && currentIndex < files.length - 1
-                      }
-                    />
+                    <div className="diff-workspace">
+                      <DiffPane
+                        content={content}
+                        loading={fileLoading}
+                        full={full}
+                        setFull={setFull}
+                        split={split}
+                        setSplit={setSplit}
+                        fileMode={mode === "tree"}
+                        onResolve={(value) =>
+                          actionModal(
+                            "Save conflict resolution",
+                            "resolve",
+                            [],
+                            { path: selected, content: value },
+                            "Write your resolution to disk and stage this file.",
+                          )
+                        }
+                      />
+                      {localChanges && (
+                        <CommitForm
+                          key={active}
+                          count={files.filter((file) => file.staged).length}
+                          busy={!!busy || !connected}
+                          onCommit={(message) =>
+                            action("commit", { name: message })
+                          }
+                        />
+                      )}
+                    </div>
                   )}
                 </WorkspaceLayout>
               )}

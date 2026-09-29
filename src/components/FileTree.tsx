@@ -19,12 +19,14 @@ export function FileTree({
   selected,
   onSelect,
   filter,
+  onDoubleClick,
 }: {
   projectId: string;
   files: ChangedFile[];
   selected: string;
   onSelect: (path: string) => void;
   filter: string;
+  onDoubleClick?: (path: string) => void;
 }) {
   const root: Node = { name: "", path: "", children: new Map() };
   for (const file of files.filter((f) =>
@@ -54,6 +56,7 @@ export function FileTree({
           depth={0}
           selected={selected}
           onSelect={onSelect}
+          onDoubleClick={onDoubleClick}
         />
       ))}
     </div>
@@ -69,6 +72,7 @@ function TreeNode({
   depth,
   selected,
   onSelect,
+  onDoubleClick,
 }: {
   projectId: string;
   filtering: boolean;
@@ -76,6 +80,7 @@ function TreeNode({
   depth: number;
   selected: string;
   onSelect: (path: string) => void;
+  onDoubleClick?: (path: string) => void;
 }) {
   const [savedOpen, setOpen] = usePersistentBoolean(
     projectId,
@@ -97,6 +102,7 @@ function TreeNode({
           isFolder ? !filtering && setOpen(!open) : onSelect(node.path)
         }
         title={node.path}
+        onDoubleClick={() => onDoubleClick?.(node.path)}
       >
         {isFolder ? (
           <>
@@ -129,6 +135,7 @@ function TreeNode({
               depth={depth + 1}
               selected={selected}
               onSelect={onSelect}
+              onDoubleClick={onDoubleClick}
             />
           ))}
         </div>

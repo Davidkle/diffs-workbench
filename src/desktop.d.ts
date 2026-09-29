@@ -8,6 +8,7 @@ declare global {
         body?: unknown,
       ) => Promise<{ ok: true; data: T } | { ok: false; error: string }>;
       chooseProject: () => Promise<string | null>;
+      onOpenProject: (callback: () => void) => () => void;
     };
   }
 }

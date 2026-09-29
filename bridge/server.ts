@@ -18,6 +18,7 @@ import {
   fileContent,
   sync,
   resolveFile,
+  safeFile,
 } from "./git.js";
 import type { Project } from "../src/types.js";
 const app = express();
@@ -210,15 +211,23 @@ app.get("/projects/:id/file", async (req, res) => {
     path: name,
     commit,
     base,
+    layer,
   } = z
     .object({
       path: z.string(),
       commit: z.string().optional(),
       base: z.string().optional(),
+      layer: z.enum(["staged", "unstaged"]).optional(),
     })
     .parse(req.query);
   res.json(
-    await fileContent(projectFor(req.params.id).path, name, commit, base),
+    await fileContent(
+      projectFor(req.params.id).path,
+      name,
+      commit,
+      base,
+      layer,
+    ),
   );
 });
 const actionSchema = z.object({
@@ -239,6 +248,8 @@ const actionSchema = z.object({
     "stash-pop",
     "stash-drop",
     "resolve",
+    "stage",
+    "unstage",
     "commit",
   ]),
   name: z.string().optional(),
@@ -380,8 +391,54 @@ app.post("/projects/:id/action", async (req, res) => {
         const files = await changedFiles(cwd);
         if (files.some((f) => f.conflict))
           throw new Error("Resolve conflicts first");
-        await git(cwd, ["add", "-A"]);
+        if (!files.some((file) => file.staged))
+          throw new Error("Stage changes before committing");
         message = await git(cwd, ["commit", "-m", msg]);
+        break;
+      }
+      case "stage":
+      case "unstage": {
+        const target = input.path;
+        if (!target) throw new Error("Select a file or folder");
+        if (target !== ".") await safeFile(cwd, target);
+        const files = (await changedFiles(cwd)).filter(
+          (file) =>
+            (target === "." ||
+              file.path === target ||
+              file.path.startsWith(`${target}/`)) &&
+            (input.action === "stage" ? file.unstaged : file.staged),
+        );
+        const paths = [
+          ...new Set(
+            files.flatMap((file) =>
+              input.action === "unstage" && file.oldPath
+                ? [file.oldPath, file.path]
+                : [file.path],
+            ),
+          ),
+        ];
+        if (!paths.length) break;
+        if (input.action === "stage") {
+          await git(cwd, ["--literal-pathspecs", "add", "-A", "--", ...paths]);
+        } else {
+          const hasHead = await git(cwd, [
+            "rev-parse",
+            "--verify",
+            "HEAD",
+          ]).then(
+            () => true,
+            () => false,
+          );
+          await git(cwd, [
+            "--literal-pathspecs",
+            ...(hasHead
+              ? ["reset", "-q", "HEAD"]
+              : ["rm", "--cached", "--force", "--ignore-unmatch"]),
+            "--",
+            ...paths,
+          ]);
+        }
+        message = `${input.action === "stage" ? "Staged" : "Unstaged"} ${files.length} file${files.length === 1 ? "" : "s"}`;
         break;
       }
     }

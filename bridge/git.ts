@@ -85,6 +85,7 @@ export function parseStatus(raw: string): ChangedFile[] {
                   ? "R"
                   : "M",
       staged: ![" ", "?"].includes(xy[0]),
+      unstaged: xy[1] !== " ",
       conflict: /U/.test(xy) || xy === "AA" || xy === "DD",
       additions: 0,
       deletions: 0,
@@ -303,6 +304,7 @@ export async function fileContent(
   name: string,
   commit?: string,
   base?: string,
+  layer?: "staged" | "unstaged",
 ): Promise<FileContent> {
   const target = await safeFile(cwd, name);
   if (base && !commit) throw new Error("A target commit is required");
@@ -319,13 +321,15 @@ export async function fileContent(
       );
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
-  const oldName = changed?.oldPath || name;
+  const oldName = layer === "unstaged" ? name : changed?.oldPath || name;
   const old = await optional(cwd, [
     "show",
-    `${base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
+    `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
   ]);
   let current = "";
   if (commit) current = await optional(cwd, ["show", `${commit}:${name}`]);
+  else if (layer === "staged")
+    current = await optional(cwd, ["show", `:${name}`]);
   else {
     try {
       const stat = await lstat(target);

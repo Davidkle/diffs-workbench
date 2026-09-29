@@ -152,6 +152,16 @@ else {
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           { role: "appMenu" },
+          {
+            label: "File",
+            submenu: [
+              {
+                label: "Open Project…",
+                accelerator: "CmdOrCtrl+O",
+                click: () => window?.webContents.send("open-project"),
+              },
+            ],
+          },
           { role: "editMenu" },
           { role: "viewMenu" },
           { role: "windowMenu" },
