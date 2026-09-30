@@ -1748,7 +1748,7 @@ export function App() {
                   { "--chat-width": `${chatWidth}px` } as React.CSSProperties
                 }
               >
-                <div className="chat-workbench">
+                <div className="chat-workspace">
                   {!connected && (
                     <div className="demo-banner">
                       <div>

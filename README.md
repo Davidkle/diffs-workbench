@@ -1,12 +1,53 @@
+<p align="center">
+  <img src="docs/icon.png" alt="Donkey Diff logo" width="96" height="96" />
+</p>
+
 # Donkey Diff
 
-An open-source, local-first Git workbench with a desktop-style interface. Review code with [Pierre's Diffs](https://diffs.com), switch between projects, and manage your local Git workflow in a Mac app or browser.
+**Open source Git client for Mac.** Free to use, under the MIT license.
 
-**[Download for Mac](https://github.com/DonkeyCut/donkey-diff/releases/latest)** · [Website](https://donkeycut.github.io/donkey-diff/) · [Web preview](https://diffs-workbench.vercel.app) · [MIT license](LICENSE)
+Review changes, manage branches and worktrees, and commit your work. Git operations run on your computer. A browser interface is also available.
 
-[![Watch the Donkey Diff demo](docs/poster.jpg)](https://donkeycut.github.io/donkey-diff/)
+**[Download for Mac](https://github.com/DonkeyCut/donkey-diff/releases/latest)** · [Website](https://donkeycut.github.io/donkey-diff/) · [Browser preview](https://diffs-workbench.vercel.app) · [MIT license](LICENSE)
 
-[Watch the video](https://donkeycut.github.io/donkey-diff/demo.mp4)
+[![Donkey Diff showing a file tree, code diff, and project chat](docs/poster.jpg)](https://donkeycut.github.io/donkey-diff/)
+
+[Watch the demo](https://donkeycut.github.io/donkey-diff/demo.mp4)
+
+## Features
+
+### Diff viewer
+
+Read unified or side-by-side diffs with syntax highlighting and line wrapping. Expand the full file for context, filter changed files, or browse the whole repository. Diff rendering is powered by [Pierre’s Diffs](https://diffs.com).
+
+### Inline asset previews
+
+See SVG assets rendered alongside their source. Compare before and after previews in a diff, or preview the current SVG while browsing files.
+
+### Staging and commits
+
+Double-click a file or folder to stage or unstage it. Review your staged changes, write a message, and commit. Everything else stays in your working directory. Stash tracked and untracked changes when you need to put unfinished work aside; apply, pop, or delete stashes later.
+
+### Branches and worktrees
+
+Keep projects in separate tabs. Create, switch, rename, and delete local branches. Create, open, move, and remove worktrees to keep another branch checked out in its own folder. Branch and worktree deletion use Git’s safety checks.
+
+### Commit history
+
+Browse the latest 150 commits, inspect commit details, and read historical file diffs. Select two commits to compare their snapshots. Use Shift-click or Cmd/Ctrl-click to select multiple commits.
+
+### Codex and Claude
+
+Ask an agent to explain code, make an edit, or review changes. Follow streaming replies, commands, and file activity beside your diff. Choose a model from your installed agents, run repository skills with slash commands, and keep conversations for each project.
+
+Requires a signed-in Codex or Claude CLI. Chat uses that provider’s service and your existing account. See [project chat](#project-chat) for setup and behavior.
+
+### More features
+
+- **Fetch, pull, and push.** Use your existing Git credentials. Optional auto sync fetches regularly and pulls only when your working tree is clean and a fast-forward is possible.
+- **Resolve conflicts.** Compare current and incoming versions side by side. Choose a version or edit the resolution, then save and stage the file.
+- **Arrange your view.** Resize the sidebar, commit history, and file tree. Panel sizes are saved, and the layout adapts to smaller screens.
+- **Work locally.** Git operations run on your computer. The Mac app includes the local service; the browser interface connects to it.
 
 ## Get started on Mac
 
@@ -17,22 +58,6 @@ An open-source, local-first Git workbench with a desktop-style interface. Review
 The app starts its local service automatically and remembers your projects. No Node.js installation, terminal, pairing key, or browser permissions are needed. Git must be installed; push and pull use your existing Git credentials.
 
 Local development packages are unsigned. The daily release workflow requires Developer ID signing and Apple notarization before publishing; its credentials and first successful run still need to be verified. See [release setup](RELEASES.md).
-
-## Features
-
-- Multiple local repositories in separate tabs
-- Working-tree changes, full-file context, unified/split diffs, line wrapping, and syntax highlighting
-- Hierarchical changed-file tree, file filtering, and complete repository file browsing
-- Recent commit history (latest 150 commits), commit details, and historical file diffs
-- Multi-select commits with Shift-click or Cmd/Ctrl-click; select two to compare their snapshots
-- Resizable sidebar, commit history, and file tree with saved panel sizes
-- Create, switch, rename, and safely delete local branches
-- Create, open, move, and safely remove worktrees
-- Fetch, fast-forward pull, push to origin, and optional automatic sync
-- Stash tracked and untracked changes; apply, pop, or delete stashes
-- Side-by-side conflict versions and an editable resolution, saved and staged locally
-- Stage or unstage files and folders by double-clicking, then commit only staged changes
-- Responsive desktop and mobile layouts
 
 ## Browser setup (advanced)
 

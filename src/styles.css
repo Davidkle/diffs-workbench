@@ -1966,7 +1966,7 @@ button svg {
   gap: 10px;
 }
 
-/* Readable defaults across the workbench, including narrow windows. */
+/* Readable defaults across the app, including narrow windows. */
 .primary-nav button,
 .nav-row,
 .tree-row,
@@ -2401,7 +2401,7 @@ button svg {
   min-width: 0;
   position: relative;
 }
-.chat-workbench {
+.chat-workspace {
   display: flex;
   flex: 1;
   flex-direction: column;

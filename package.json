@@ -60,7 +60,7 @@
     "vite": "^7.1.5"
   },
   "main": "desktop/main.cjs",
-  "description": "A local-first Git workbench",
+  "description": "Open source Git client for Mac",
   "author": "David Le",
   "license": "MIT",
   "build": {
