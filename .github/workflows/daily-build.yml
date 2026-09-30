@@ -89,6 +89,7 @@ jobs:
         run: |
           npm run prepare:update
           cd release
+          shasum -a 256 "Donkey-Diff-$VERSION-arm64.dmg" > "Donkey-Diff-$VERSION-arm64.dmg.sha256"
           shasum -a 256 "Donkey-Diff-$VERSION-arm64.zip" > "Donkey-Diff-$VERSION-arm64.zip.sha256"
       - name: Preserve verified build artifacts
         uses: actions/upload-artifact@v4
@@ -97,6 +98,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
           path: |
+            release/*.dmg
             release/*.zip
             release/*.sha256
             appcast.xml
@@ -104,11 +106,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          printf 'Daily Apple Silicon build. Developer ID signed, notarized by Apple, and stapled.
-
-Source: %s
-' "$GITHUB_SHA" > "$RUNNER_TEMP/donkey-diff-release-notes.md"
-          gh release create "v$VERSION" "release/Donkey-Diff-$VERSION-arm64.zip" "release/Donkey-Diff-$VERSION-arm64.zip.sha256" appcast.xml --target "$GITHUB_SHA" --title "Donkey Diff $VERSION" --notes-file "$RUNNER_TEMP/donkey-diff-release-notes.md" --latest
+          printf 'Apple Silicon build. Developer ID signed, notarized by Apple, and stapled.\n\nDownload the DMG and drag Donkey Diff into Applications. The ZIP is used for automatic updates.\n\nSource: %s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/donkey-diff-release-notes.md"
+          gh release create "v$VERSION" "release/Donkey-Diff-$VERSION-arm64.dmg" "release/Donkey-Diff-$VERSION-arm64.dmg.sha256" "release/Donkey-Diff-$VERSION-arm64.zip" "release/Donkey-Diff-$VERSION-arm64.zip.sha256" appcast.xml --target "$GITHUB_SHA" --title "Donkey Diff $VERSION" --notes-file "$RUNNER_TEMP/donkey-diff-release-notes.md" --latest
       - name: Remove temporary signing material
         if: always()
         run: |

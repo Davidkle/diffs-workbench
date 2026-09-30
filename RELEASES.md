@@ -4,11 +4,11 @@
 
 The Daily Donkey Diff build workflow runs at 18:00 UTC (03:00 Asia/Seoul) and can be dispatched manually from main. The workflow must be committed to main before GitHub can schedule it. Local source changes have not been committed or published automatically.
 
-Each run checks types, lints, runs tests, builds an Apple Silicon app, Developer ID signs it, submits it to Apple for notarization, staples and validates the ticket, then signs its Sparkle update archive. Failed signing or notarization stops publication. The local package:mac command remains a development build; use scripts/release-config.cjs for distribution.
+Each run checks types, lints, runs tests, builds an Apple Silicon app, Developer ID signs it, submits it to Apple for notarization, staples and validates the ticket, then signs its Sparkle update archive. Failed signing or notarization stops publication. The local package:mac command creates an unsigned production-named build for testing; use scripts/release-config.cjs for signed distribution. The separate package:mac:dev command creates the isolated red-logo dev app.
 
-Versions use the package major/minor and package patch plus the workflow run number. Releases have immutable numeric tags, a ZIP download, SHA-256 checksum, and appcast.xml. The updater reads the appcast asset from the latest release; each enclosure points to its immutable numeric release tag. Re-running an already published version does not overwrite it.
+Versions use the package major/minor and package patch plus the workflow run number. Releases have immutable numeric tags, a DMG installer, a ZIP for automatic updates, SHA-256 checksums, and appcast.xml. The updater reads the appcast asset from the latest release; each enclosure points to its immutable numeric release tag. Re-running an already published version does not overwrite it.
 
-The current build targets Apple Silicon only. The ZIP contains Donkey Diff.app; users extract it into Applications.
+The current build targets Apple Silicon only. The DMG contains Donkey Diff.app and an Applications shortcut; users drag the app into Applications. The ZIP is retained for Sparkle updates.
 
 ## Required GitHub Actions secrets
 

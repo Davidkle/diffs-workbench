@@ -1,6 +1,6 @@
 {
   "name": "donkey-diff",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "type": "module",
   "scripts": {
@@ -82,6 +82,7 @@
       "category": "public.app-category.developer-tools",
       "target": [
         "dir",
+        "dmg",
         "zip"
       ],
       "identity": null
