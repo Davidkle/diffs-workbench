@@ -10,7 +10,8 @@ module.exports = {
   afterSign: "scripts/notarize.cjs",
   mac: {
     ...base.mac,
-    identity,
+    // electron-builder selects the Developer ID certificate type itself.
+    identity: identity.replace(/^Developer ID Application:\s*/, ""),
     hardenedRuntime: true,
     entitlements: "desktop/entitlements.mac.plist",
     entitlementsInherit: "desktop/entitlements.mac.plist",
