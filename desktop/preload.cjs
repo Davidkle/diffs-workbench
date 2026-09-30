@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("donkeyDiffDesktop", {
   platform: process.platform,
+  development: process.argv.includes("--donkey-diff-dev"),
   getUpdateState: () => ipcRenderer.invoke("update-state"),
   activateUpdate: () => ipcRenderer.invoke("update-action"),
   onUpdateState: (callback) => {

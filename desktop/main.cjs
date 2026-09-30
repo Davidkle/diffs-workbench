@@ -13,7 +13,16 @@ const { mkdir, readFile, writeFile } = require("node:fs/promises");
 const { randomBytes } = require("node:crypto");
 const { createTelemetry } = require("./telemetry.cjs");
 const { resolveProjectFile } = require("./file-actions.cjs");
-app.setName("Donkey Diff");
+const { appEnvironment } = require("./environment.cjs");
+const environment = appEnvironment({
+  isPackaged: app.isPackaged,
+  channel: require("../package.json").donkeyDiffChannel,
+  appData: app.getPath("appData"),
+});
+app.setName(environment.name);
+// Set this before the instance lock or Chromium session is initialized.
+app.setPath("userData", environment.userData);
+app.setAppUserModelId(environment.appId);
 let bridgeProcess;
 let window;
 let token;
@@ -22,14 +31,14 @@ let fileRead;
 const { createUpdater } = require("./updater.cjs");
 const updater = createUpdater({
   currentVersion: app.getVersion(),
-  supported: process.platform === "darwin" && app.isPackaged,
+  supported: process.platform === "darwin" && environment.productionServices,
   nativePath: path.join(process.resourcesPath, "sparkle.node"),
   publish: (state) => {
     if (window && !window.isDestroyed())
       window.webContents.send("update-state", state);
   },
 });
-const port = 43129;
+const port = environment.port;
 const entry = path.join(__dirname, "../dist/index.html");
 const entryUrl = pathToFileURL(entry).href;
 const ownedFrame = (event) => {
@@ -47,6 +56,8 @@ else {
   app
     .whenReady()
     .then(async () => {
+      if (process.platform === "darwin" && environment.development)
+        app.dock.setIcon(path.join(__dirname, "assets", environment.icon));
       const dataDir = path.join(app.getPath("userData"), "local-git");
       await mkdir(dataDir, { recursive: true, mode: 0o700 });
       const tokenPath = path.join(dataDir, "token");
@@ -68,7 +79,7 @@ else {
             DONKEY_DIFF_ALLOWED_ORIGINS: `http://127.0.0.1:${port}`,
           },
           stdio: "pipe",
-          serviceName: "Donkey Diff Git service",
+          serviceName: `${environment.name} Git service`,
         },
       );
       await new Promise((resolve, reject) => {
@@ -99,7 +110,7 @@ else {
         dataDir: app.getPath("userData"),
         resourcesPath: process.resourcesPath,
         version: app.getVersion(),
-        packaged: app.isPackaged,
+        packaged: environment.productionServices,
       });
       ipcMain.handle("git-request", async (event, route, method, body) => {
         ownedFrame(event);
@@ -219,7 +230,8 @@ else {
           height: 920,
           minWidth: 700,
           minHeight: 500,
-          title: "Donkey Diff",
+          title: environment.name,
+          icon: path.join(__dirname, "assets", environment.icon),
           ...(process.platform === "darwin"
             ? {
                 titleBarStyle: "hidden",
@@ -229,10 +241,17 @@ else {
           backgroundColor: "#0a0a0a",
           webPreferences: {
             preload: path.join(__dirname, "preload.cjs"),
+            additionalArguments: environment.development
+              ? ["--donkey-diff-dev"]
+              : [],
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
           },
+        });
+        window.on("page-title-updated", (event) => {
+          event.preventDefault();
+          window.setTitle(environment.name);
         });
         window.webContents.setWindowOpenHandler(({ url }) => {
           if (url.startsWith("https://github.com/DonkeyCut/donkey-diff"))

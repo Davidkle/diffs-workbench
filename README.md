@@ -115,13 +115,17 @@ npm run bridge -- /absolute/path/to/repo
 npm run dev
 # Or run the desktop app:
 npm run desktop
-# Build the Apple Silicon Mac app:
+# Build a separate red-icon development app:
+npm run package:mac:dev
+# Build the production Apple Silicon Mac app:
 npm run package:mac
 npm run ts-check
 npm run lint
 npm test
 npm run build
 ```
+
+`npm run desktop` launches **Donkey Diff Dev** with a red Dock icon and a red Dev label in the app. `npm run package:mac:dev` creates `release/dev/mac-arm64/Donkey Diff Dev.app`, which can run alongside production. Dev uses its own application data and Git service port (43130); production keeps its existing data and port (43129). Projects, settings, and chats stay separate. Dev builds do not check for production updates or send usage telemetry.
 
 Stack: React 19, TypeScript, Vite, Tailwind CSS 4, shadcn-style components built with Radix primitives, Express, Zod, and `@pierre/diffs`.
 

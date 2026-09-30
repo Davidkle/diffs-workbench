@@ -14,6 +14,7 @@
     "lint": "eslint src bridge",
     "format": "prettier --write src bridge *.json *.ts *.md .github/workflows/*.yml",
     "desktop": "npm run build && electron .",
+    "package:mac:dev": "npm run build && electron-builder --config desktop/electron-builder.dev.cjs --mac --arm64",
     "package:mac": "npm run build && npm run build:sparkle && electron-builder --mac --arm64",
     "build:sparkle": "node scripts/build-sparkle.mjs",
     "prepare:update": "node scripts/prepare-update.mjs"

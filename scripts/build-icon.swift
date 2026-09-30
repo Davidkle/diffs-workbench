@@ -4,7 +4,9 @@ import AppKit
 // Draw vectors at each native icon size so the small Dock icons stay sharp.
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let assets = root.appendingPathComponent("desktop/assets")
-let iconset = root.appendingPathComponent("build/DonkeyDiff.iconset")
+let development = CommandLine.arguments.contains("--dev")
+let iconName = development ? "icon-dev" : "icon"
+let iconset = root.appendingPathComponent("build/\(iconName).iconset")
 try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
@@ -22,7 +24,9 @@ func render(_ pixels: Int) -> Data {
     NSBezierPath(roundedRect: NSRect(x: 64, y: 64, width: 896, height: 896), xRadius: 200, yRadius: 200).fill()
     context.translateBy(x: 200, y: 200)
     context.scaleBy(x: 26, y: 26)
-    NSColor(srgbRed: 245/255, green: 245/255, blue: 245/255, alpha: 1).setStroke()
+    (development
+        ? NSColor(srgbRed: 248/255, green: 113/255, blue: 113/255, alpha: 1)
+        : NSColor(srgbRed: 245/255, green: 245/255, blue: 245/255, alpha: 1)).setStroke()
     for (x, y) in [(18.0, 18.0), (6.0, 6.0)] {
         let circle = NSBezierPath(ovalIn: NSRect(x: x - 3, y: y - 3, width: 6, height: 6))
         circle.lineWidth = 2
@@ -49,10 +53,10 @@ for size in [16, 32, 128, 256, 512] {
     try render(size).write(to: iconset.appendingPathComponent("icon_\(size)x\(size).png"))
     try render(size * 2).write(to: iconset.appendingPathComponent("icon_\(size)x\(size)@2x.png"))
 }
-try render(1024).write(to: assets.appendingPathComponent("icon.png"))
+try render(1024).write(to: assets.appendingPathComponent("\(iconName).png"))
 let process = Process()
 process.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-process.arguments = ["-c", "icns", iconset.path, "-o", assets.appendingPathComponent("icon.icns").path]
+process.arguments = ["-c", "icns", iconset.path, "-o", assets.appendingPathComponent("\(iconName).icns").path]
 try process.run()
 process.waitUntilExit()
 if process.terminationStatus != 0 { exit(process.terminationStatus) }

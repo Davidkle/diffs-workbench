@@ -4,6 +4,7 @@ declare global {
   interface Window {
     donkeyDiffDesktop?: {
       platform: string;
+      development?: boolean;
       getUpdateState: () => Promise<UpdateState>;
       activateUpdate: () => Promise<UpdateState>;
       onUpdateState: (callback: (state: UpdateState) => void) => () => void;

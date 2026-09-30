@@ -1224,6 +1224,12 @@ export function App() {
             />
           )}
         </div>
+        {window.donkeyDiffDesktop?.development && (
+          <span className="dev-indicator" title="Donkey Diff Dev">
+            <GitCompare size={15} aria-hidden="true" />
+            Dev
+          </span>
+        )}
         <UpdateButton busy={!!busy} />
       </div>
       <div className="project-workspace">
