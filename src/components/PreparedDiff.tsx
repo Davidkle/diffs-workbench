@@ -21,6 +21,13 @@ type Props = {
   fileMode?: boolean;
 };
 export type ChangeNavigation = { jump: (direction: -1 | 1) => void };
+type PreparedResult = {
+  source: FileContent;
+  diff?: FileDiffMetadata;
+  error?: string;
+};
+// Entries disappear when the bounded file-content cache releases their source.
+const prepared = new WeakMap<FileContent, PreparedResult>();
 /** Parsing runs in a disposable worker so switching away cancels expensive work. */
 export const PreparedDiff = memo(function PreparedDiff({
   content,
@@ -36,12 +43,10 @@ export const PreparedDiff = memo(function PreparedDiff({
     index: number;
     scrollTop: number;
   } | null>(null);
-  const [result, setResult] = useState<{
-    source: FileContent;
-    diff?: FileDiffMetadata;
-    error?: string;
-  }>();
+  const [lastResult, setResult] = useState<PreparedResult>();
+  const result = prepared.get(content) ?? lastResult;
   useEffect(() => {
+    if (!fileMode && result?.source !== content) return;
     onChangesReady?.(
       !fileMode && result?.source === content && result.diff
         ? changeTargets(result.diff).length
@@ -102,6 +107,11 @@ export const PreparedDiff = memo(function PreparedDiff({
   );
   useEffect(() => {
     if (fileMode) return;
+    const cached = prepared.get(content);
+    if (cached) {
+      setResult(cached);
+      return;
+    }
     const worker = new DiffWorker();
     let stopped = false;
     const timeout = setTimeout(() => {
@@ -118,10 +128,13 @@ export const PreparedDiff = memo(function PreparedDiff({
     }: MessageEvent<{ fileDiff?: FileDiffMetadata; error?: string }>) => {
       if (stopped) return;
       clearTimeout(timeout);
-      setResult({ source: content, diff: data.fileDiff, error: data.error });
+      const next = { source: content, diff: data.fileDiff, error: data.error };
+      if (data.fileDiff) prepared.set(content, next);
+      setResult(next);
       worker.terminate();
     };
     worker.onerror = () => {
+      if (stopped) return;
       clearTimeout(timeout);
       setResult({
         source: content,
@@ -154,7 +167,7 @@ export const PreparedDiff = memo(function PreparedDiff({
         }}
       />
     );
-  if (result?.source !== content)
+  if (!result)
     return (
       <div className="empty" role="status">
         <span className="spinner" />
@@ -168,15 +181,22 @@ export const PreparedDiff = memo(function PreparedDiff({
       </div>
     );
   return result.diff ? (
-    <FileDiff
-      fileDiff={result.diff}
-      options={{
-        ...options,
-        onPostRender: (_node, rendered) => {
-          if (rendered instanceof VirtualizedFileDiff)
-            instance.current = rendered;
-        },
-      }}
-    />
+    <>
+      {result.source !== content && (
+        <span className="diff-loading-indicator" role="status">
+          Preparing diff…
+        </span>
+      )}
+      <FileDiff
+        fileDiff={result.diff}
+        options={{
+          ...options,
+          onPostRender: (_node, rendered) => {
+            if (rendered instanceof VirtualizedFileDiff)
+              instance.current = rendered;
+          },
+        }}
+      />
+    </>
   ) : null;
 });

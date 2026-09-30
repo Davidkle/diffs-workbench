@@ -9,12 +9,13 @@ import {
   changedFiles,
   fileContent,
   snapshot,
+  commitHistory,
   sync,
   safeFile,
   resolveFile,
 } from "./git.js";
 async function fixture() {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "diffs-test-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "donkey-diff-test-"));
   await git(dir, ["init", "-b", "main"]);
   await git(dir, ["config", "user.email", "tests@example.com"]);
   await git(dir, ["config", "user.name", "Test"]);
@@ -23,6 +24,47 @@ async function fixture() {
   await git(dir, ["commit", "-m", "Initial"]);
   return dir;
 }
+test("sidebar history browses occupied branches, tags and remotes without checkout", async () => {
+  const dir = await fixture();
+  const linked = `${dir}-linked`;
+  try {
+    const original = await git(dir, ["rev-parse", "HEAD"]);
+    await git(dir, ["worktree", "add", "-b", "feature", linked]);
+    await writeFile(path.join(linked, "hello.ts"), "feature\n");
+    await git(linked, ["commit", "-am", "Feature change"]);
+    const tip = (await git(linked, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["tag", "v1", tip]);
+    await git(dir, ["update-ref", "refs/remotes/origin/feature", tip]);
+    for (const ref of [
+      "refs/heads/feature",
+      "refs/tags/v1",
+      "refs/remotes/origin/feature",
+    ]) {
+      assert.equal((await commitHistory(dir, ref))[0].hash, tip);
+    }
+    assert.equal(await git(dir, ["rev-parse", "HEAD"]), original);
+    assert.equal((await git(dir, ["branch", "--show-current"])).trim(), "main");
+    assert.equal(
+      await readFile(path.join(dir, "hello.ts"), "utf8"),
+      'const hello = "world";\n',
+    );
+    const navigation = await snapshot(
+      { id: "test", name: "test", path: dir },
+      true,
+    );
+    assert.ok(
+      navigation.branches.some(
+        (b) => b.remote && b.ref === "refs/remotes/origin/feature",
+      ),
+    );
+    assert.equal(navigation.worktrees.length, 2);
+    await assert.rejects(commitHistory(dir, "--all"));
+    await assert.rejects(commitHistory(dir, "missing"));
+  } finally {
+    await rm(linked, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 test("porcelain parser handles spaces, staged renames and conflicts", () => {
   const files = parseStatus(
     " M src/a file.ts\0R  new.ts\0old.ts\0?? fresh.ts\0UU conflict.ts\0",
@@ -32,6 +74,38 @@ test("porcelain parser handles spaces, staged renames and conflicts", () => {
   assert.equal(files[1].staged, true);
   assert.equal(files[2].status, "A");
   assert.equal(files[3].conflict, true);
+});
+test("history and snapshots expose complete merge ancestry in topological order", async () => {
+  const dir = await fixture();
+  try {
+    const root = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["switch", "-c", "feature"]);
+    await writeFile(path.join(dir, "feature.ts"), "feature\n");
+    await git(dir, ["add", "."]);
+    await git(dir, ["commit", "-m", "Feature"]);
+    const side = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["switch", "main"]);
+    await writeFile(path.join(dir, "hello.ts"), "main\n");
+    await git(dir, ["commit", "-am", "Main"]);
+    const main = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["merge", "--no-ff", "feature", "-m", "Merge feature"]);
+    const merge = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    const state = await snapshot({ id: "test", name: "test", path: dir });
+    for (const commits of [state.commits, await commitHistory(dir, "HEAD")]) {
+      assert.equal(commits[0].hash, merge);
+      assert.equal(commits[0].parents, `${main} ${side}`);
+      assert.equal(commits.length, 4);
+      assert.equal(commits.at(-1)?.hash, root);
+      for (const [index, entry] of commits.entries()) {
+        for (const parent of entry.parents.split(" ").filter(Boolean)) {
+          assert.equal(parent.length, 40);
+          assert.ok(commits.findIndex((c) => c.hash === parent) > index);
+        }
+      }
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 test("working changes compare HEAD to disk and root commits are viewable", async () => {
   const dir = await fixture();
@@ -97,7 +171,7 @@ test("conflict versions and resolution preserve intended content", async () => {
 });
 test("sync fetches but never changes a dirty worktree", async () => {
   const dir = await fixture();
-  const remote = await mkdtemp(path.join(os.tmpdir(), "diffs-remote-"));
+  const remote = await mkdtemp(path.join(os.tmpdir(), "donkey-diff-remote-"));
   try {
     await git(remote, ["init", "--bare"]);
     await git(dir, ["remote", "add", "origin", remote]);
@@ -167,5 +241,46 @@ test("deleted project directories report recovery instructions and do not break 
     assert.equal(state.commits.length, 1);
   } finally {
     await rm(healthy, { recursive: true, force: true });
+  }
+});
+
+test("cancellable file reads preserve staged renames and unstaged index comparisons", async () => {
+  const dir = await fixture();
+  try {
+    await git(dir, ["mv", "hello.ts", "renamed.ts"]);
+    const staged = await fileContent(
+      dir,
+      "renamed.ts",
+      undefined,
+      undefined,
+      "staged",
+    );
+    assert.equal(staged.old, staged.current);
+    assert.match(staged.old, /world/);
+    await writeFile(path.join(dir, "renamed.ts"), "changed\n");
+    const unstaged = await fileContent(
+      dir,
+      "renamed.ts",
+      undefined,
+      undefined,
+      "unstaged",
+    );
+    assert.equal(unstaged.old, staged.current);
+    assert.equal(unstaged.current, "changed\n");
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(
+      fileContent(
+        dir,
+        "renamed.ts",
+        undefined,
+        undefined,
+        "unstaged",
+        controller.signal,
+      ),
+      /abort/i,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });

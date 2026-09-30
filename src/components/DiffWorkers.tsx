@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DIFF_THEME } from "@/diff-theme";
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import HighlightWorker from "@pierre/diffs/worker/worker.js?worker&inline";
 const poolOptions = {
@@ -7,7 +8,7 @@ const poolOptions = {
   totalASTLRUCacheSize: 8,
 };
 const highlighterOptions = {
-  theme: "pierre-dark",
+  theme: DIFF_THEME,
   preferredHighlighter: "shiki-js" as const,
 };
 export function DiffWorkers({ children }: { children: ReactNode }) {

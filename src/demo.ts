@@ -25,7 +25,7 @@ export const demoContent: FileContent = {
   conflict: false,
 };
 export const demo: Snapshot = {
-  project: { id: "demo", name: "workbench", path: "Example workspace" },
+  project: { id: "demo", name: "donkey-diff", path: "Example workspace" },
   branch: "main",
   files: [
     {
@@ -59,7 +59,7 @@ export const demo: Snapshot = {
     { name: "fix/file-tree", current: false, upstream: "", track: "" },
   ],
   worktrees: [
-    { path: "workbench", branch: "main", head: "", locked: false },
+    { path: "donkey-diff", branch: "main", head: "", locked: false },
     { path: "local-sync", branch: "feat/local-sync", head: "", locked: false },
   ],
   stashes: [],
@@ -71,11 +71,11 @@ export const demo: Snapshot = {
     "Add project tabs and workspace navigation",
     "Support unified and split diff views",
     "Connect local Git repositories",
-    "Set up the workbench",
+    "Set up the Git client",
   ].map((subject, i) => ({
     hash: `example-${i}`,
     short: ["a4e9f21", "b8c320a", "c31d9f4", "d86a3c2"][i],
-    parents: "",
+    parents: i < 3 ? `example-${i + 1}` : "",
     author: "Example author",
     date: new Date(Date.now() - i * 3600000).toISOString(),
     subject,

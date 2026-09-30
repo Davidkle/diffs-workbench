@@ -38,3 +38,34 @@ test("failed reads can retry and cache memory is bounded", async () => {
   assert.equal(cache.get("b"), 2);
   assert.equal(cache.get("c"), 3);
 });
+
+test("invalidating an in-flight read cannot overwrite or detach its replacement", async () => {
+  const cache = new ProjectCache<string>();
+  let finishOld!: (value: string) => void;
+  let finishNew!: (value: string) => void;
+  const old = cache.load(
+    "a",
+    () =>
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+  );
+  cache.invalidate("a");
+  const current = cache.load(
+    "a",
+    () =>
+      new Promise((resolve) => {
+        finishNew = resolve;
+      }),
+  );
+  finishOld("obsolete");
+  await old;
+  assert.equal(cache.get("a"), undefined);
+  assert.equal(
+    cache.load("a", async () => "unexpected"),
+    current,
+  );
+  finishNew("fresh");
+  await current;
+  assert.equal(cache.get("a"), "fresh");
+});

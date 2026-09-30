@@ -11,9 +11,24 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { mkdir, readFile, writeFile } = require("node:fs/promises");
 const { randomBytes } = require("node:crypto");
+const { createTelemetry } = require("./telemetry.cjs");
+const { resolveProjectFile } = require("./file-actions.cjs");
+app.setName("Donkey Diff");
 let bridgeProcess;
 let window;
 let token;
+let activeMutations = 0;
+let fileRead;
+const { createUpdater } = require("./updater.cjs");
+const updater = createUpdater({
+  currentVersion: app.getVersion(),
+  supported: process.platform === "darwin" && app.isPackaged,
+  nativePath: path.join(process.resourcesPath, "sparkle.node"),
+  publish: (state) => {
+    if (window && !window.isDestroyed())
+      window.webContents.send("update-state", state);
+  },
+});
 const port = 43129;
 const entry = path.join(__dirname, "../dist/index.html");
 const entryUrl = pathToFileURL(entry).href;
@@ -48,12 +63,12 @@ else {
           env: {
             ...process.env,
             PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH || ""}:/usr/bin:/bin:/usr/sbin:/sbin`,
-            DIFFS_PORT: String(port),
-            DIFFS_DATA_DIR: dataDir,
-            DIFFS_ALLOWED_ORIGINS: `http://127.0.0.1:${port}`,
+            DONKEY_DIFF_PORT: String(port),
+            DONKEY_DIFF_DATA_DIR: dataDir,
+            DONKEY_DIFF_ALLOWED_ORIGINS: `http://127.0.0.1:${port}`,
           },
           stdio: "pipe",
-          serviceName: "Diffs Git service",
+          serviceName: "Donkey Diff Git service",
         },
       );
       await new Promise((resolve, reject) => {
@@ -61,7 +76,7 @@ else {
           () =>
             reject(
               new Error(
-                "The local Git service could not start. Please quit and reopen Diffs.",
+                "The local Git service could not start. Please quit and reopen Donkey Diff.",
               ),
             ),
           15000,
@@ -80,16 +95,37 @@ else {
           reject(new Error(`Git service stopped (${code}).`));
         });
       });
+      const telemetry = await createTelemetry({
+        dataDir: app.getPath("userData"),
+        resourcesPath: process.resourcesPath,
+        version: app.getVersion(),
+        packaged: app.isPackaged,
+      });
       ipcMain.handle("git-request", async (event, route, method, body) => {
         ownedFrame(event);
         if (
           typeof route !== "string" ||
-          !/^\/projects(?:\/[a-f0-9]{16}(?:\/(?:files|tree|file|action))?)?(?:\?.*)?$/.test(
+          !/^\/projects(?:\/[a-f0-9]{16}(?:\/(?:files|tree|file|action|navigation|history|chat(?:\/(?:providers|send|stop))?))?)?(?:\?.*)?$/.test(
             route,
           ) ||
           !["GET", "POST", "DELETE"].includes(method)
         )
           throw new Error("Invalid request");
+        if (method !== "GET" && updater.getState().status === "installing") {
+          return {
+            ok: false,
+            error:
+              "An app update is installing. Try again after Donkey Diff restarts.",
+          };
+        }
+        const readingFile =
+          method === "GET" && /^\/projects\/[a-f0-9]{16}\/file\?/.test(route);
+        const controller = readingFile ? new AbortController() : undefined;
+        if (controller) {
+          fileRead?.abort();
+          fileRead = controller;
+        }
+        if (method !== "GET") activeMutations++;
         try {
           const response = await fetch(`http://127.0.0.1:${port}${route}`, {
             method,
@@ -98,9 +134,19 @@ else {
               "Content-Type": "application/json",
             },
             body: body ? JSON.stringify(body) : undefined,
-            signal: AbortSignal.timeout(70000),
+            signal: controller
+              ? AbortSignal.any([controller.signal, AbortSignal.timeout(70000)])
+              : AbortSignal.timeout(70000),
           });
           const result = await response.json();
+          if (
+            response.ok &&
+            method === "POST" &&
+            route.split("?")[0] === "/projects"
+          )
+            void telemetry.capture("project_added");
+          if (response.ok && method === "DELETE")
+            void telemetry.capture("project_removed");
           return response.ok
             ? { ok: true, data: result }
             : { ok: false, error: result.error || "Git operation failed" };
@@ -108,9 +154,55 @@ else {
           return {
             ok: false,
             error:
-              "The Git service is unavailable. Quit and reopen Diffs, then try again.",
+              "The Git service is unavailable. Quit and reopen Donkey Diff, then try again.",
           };
+        } finally {
+          if (fileRead === controller) fileRead = undefined;
+          if (method !== "GET") activeMutations--;
         }
+      });
+      ipcMain.handle("update-state", (event) => {
+        ownedFrame(event);
+        return updater.getState();
+      });
+      ipcMain.handle(
+        "file-action",
+        async (event, projectId, relativePath, action) => {
+          ownedFrame(event);
+          if (!["open", "reveal"].includes(action))
+            throw new Error("Invalid file action");
+          const response = await fetch(`http://127.0.0.1:${port}/projects`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!response.ok) throw new Error("Could not load projects");
+          const target = await resolveProjectFile(
+            await response.json(),
+            projectId,
+            relativePath,
+          );
+          if (action === "reveal") shell.showItemInFolder(target);
+          else {
+            const error = await shell.openPath(target);
+            if (error) throw new Error(error);
+          }
+        },
+      );
+      ipcMain.handle("update-action", async (event) => {
+        ownedFrame(event);
+        const chatStatus = await fetch(`http://127.0.0.1:${port}/chat-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        }).then((response) => {
+          if (!response.ok) throw new Error("Could not check active chats");
+          return response.json();
+        });
+        if (activeMutations || chatStatus.running)
+          throw new Error(
+            "Wait for the current Git operation or chat to finish before updating.",
+          );
+        void telemetry.capture("update_requested");
+        return updater.activate();
       });
       ipcMain.handle("choose-project", async (event) => {
         ownedFrame(event);
@@ -127,7 +219,13 @@ else {
           height: 920,
           minWidth: 700,
           minHeight: 500,
-          title: "Diffs",
+          title: "Donkey Diff",
+          ...(process.platform === "darwin"
+            ? {
+                titleBarStyle: "hidden",
+                trafficLightPosition: { x: 12, y: 12 },
+              }
+            : {}),
           backgroundColor: "#0a0a0a",
           webPreferences: {
             preload: path.join(__dirname, "preload.cjs"),
@@ -137,7 +235,7 @@ else {
           },
         });
         window.webContents.setWindowOpenHandler(({ url }) => {
-          if (url.startsWith("https://github.com/Davidkle/diffs-workbench"))
+          if (url.startsWith("https://github.com/DonkeyCut/donkey-diff"))
             shell.openExternal(url);
           return { action: "deny" };
         });
@@ -162,18 +260,39 @@ else {
               },
             ],
           },
+          {
+            label: "Privacy",
+            submenu: [
+              {
+                label: "Send Anonymous Usage Statistics",
+                type: "checkbox",
+                checked: telemetry.isEnabled(),
+                click: (item) => {
+                  void telemetry.setEnabled(item.checked).catch(() => {
+                    item.checked = telemetry.isEnabled();
+                    dialog.showErrorBox(
+                      "Could not save preference",
+                      "Your usage preference could not be saved. Check that Donkey Diff can write its application data.",
+                    );
+                  });
+                },
+              },
+            ],
+          },
           { role: "editMenu" },
           { role: "viewMenu" },
           { role: "windowMenu" },
         ]),
       );
       createWindow();
+      void telemetry.capture("app_opened");
+      updater.start();
       app.on("activate", () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
       });
     })
     .catch((error) => {
-      dialog.showErrorBox("Diffs could not open", error.message);
+      dialog.showErrorBox("Donkey Diff could not open", error.message);
       app.quit();
     });
   app.on("before-quit", () => bridgeProcess?.kill());

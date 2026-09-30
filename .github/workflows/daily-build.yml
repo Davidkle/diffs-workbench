@@ -1,0 +1,116 @@
+name: Daily Donkey Diff build
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # 03:00 Asia/Seoul
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: donkey-diff-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      DONKEY_DIFF_SIGN_IDENTITY: ${{ secrets.DONKEY_DIFF_SIGN_IDENTITY }}
+      DONKEY_DIFF_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.DONKEY_DIFF_SPARKLE_PUBLIC_ED_KEY }}
+      DONKEY_DIFF_SPARKLE_FEED_URL: https://github.com/DonkeyCut/donkey-diff/releases/latest/download/appcast.xml
+      DONKEY_DIFF_POSTHOG_KEY: ${{ secrets.DONKEY_DIFF_POSTHOG_KEY }}
+      DONKEY_DIFF_POSTHOG_HOST: ${{ secrets.DONKEY_DIFF_POSTHOG_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Require release credentials
+        env:
+          CERTIFICATE: ${{ secrets.DONKEY_DIFF_DEVELOPER_ID_CERT_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DONKEY_DIFF_DEVELOPER_ID_CERT_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.DONKEY_DIFF_NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.DONKEY_DIFF_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.DONKEY_DIFF_NOTARY_ISSUER_ID }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.DONKEY_DIFF_SPARKLE_PRIVATE_ED_KEY }}
+        run: |
+          set -euo pipefail
+          for name in CERTIFICATE CERTIFICATE_PASSWORD NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER SPARKLE_PRIVATE_KEY DONKEY_DIFF_SIGN_IDENTITY DONKEY_DIFF_SPARKLE_PUBLIC_ED_KEY; do
+            if [ -z "${!name}" ]; then echo "Missing required secret: $name" >&2; exit 1; fi
+          done
+      - run: npm ci
+      - name: Validate source
+        run: |
+          npm run ts-check
+          npm run lint
+          npm test
+      - name: Assign release version
+        run: |
+          VERSION=$(node -e 'const p=require("./package.json"); const [a,b,c]=p.version.split(".").map(Number); console.log([a,b,c+Number(process.env.GITHUB_RUN_NUMBER)].join("."))')
+          npm version "$VERSION" --no-git-tag-version
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Prepare ephemeral signing credentials
+        env:
+          CERTIFICATE: ${{ secrets.DONKEY_DIFF_DEVELOPER_ID_CERT_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DONKEY_DIFF_DEVELOPER_ID_CERT_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.DONKEY_DIFF_NOTARY_KEY_P8 }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.DONKEY_DIFF_SPARKLE_PRIVATE_ED_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          KEYCHAIN="$RUNNER_TEMP/donkey-diff-signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/donkey-diff-certificate.p12"
+          printf '%s' "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/donkey-diff-notary.p8"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/donkey-diff-sparkle.key"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/donkey-diff-certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          echo "DONKEY_DIFF_NOTARY_KEY_FILE=$RUNNER_TEMP/donkey-diff-notary.p8" >> "$GITHUB_ENV"
+          echo "DONKEY_DIFF_SPARKLE_PRIVATE_KEY_FILE=$RUNNER_TEMP/donkey-diff-sparkle.key" >> "$GITHUB_ENV"
+      - name: Build, sign, notarize, and staple Apple Silicon app
+        env:
+          DONKEY_DIFF_NOTARY_KEY_ID: ${{ secrets.DONKEY_DIFF_NOTARY_KEY_ID }}
+          DONKEY_DIFF_NOTARY_ISSUER_ID: ${{ secrets.DONKEY_DIFF_NOTARY_ISSUER_ID }}
+        run: |
+          npm run build
+          node --input-type=module -e 'import { buildSparkle } from "./scripts/build-sparkle.mjs"; buildSparkle("arm64")'
+          npx electron-builder --config scripts/release-config.cjs --mac --arm64 --publish never
+      - name: Sign update feed and checksum
+        run: |
+          npm run prepare:update
+          cd release
+          shasum -a 256 "Donkey-Diff-$VERSION-arm64.zip" > "Donkey-Diff-$VERSION-arm64.zip.sha256"
+      - name: Preserve verified build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: donkey-diff-mac-arm64
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            release/*.zip
+            release/*.sha256
+            appcast.xml
+      - name: Publish GitHub download and update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf 'Daily Apple Silicon build. Developer ID signed, notarized by Apple, and stapled.
+
+Source: %s
+' "$GITHUB_SHA" > "$RUNNER_TEMP/donkey-diff-release-notes.md"
+          gh release create "v$VERSION" "release/Donkey-Diff-$VERSION-arm64.zip" "release/Donkey-Diff-$VERSION-arm64.zip.sha256" appcast.xml --target "$GITHUB_SHA" --title "Donkey Diff $VERSION" --notes-file "$RUNNER_TEMP/donkey-diff-release-notes.md" --latest
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/donkey-diff-signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/donkey-diff-certificate.p12" "$RUNNER_TEMP/donkey-diff-notary.p8" "$RUNNER_TEMP/donkey-diff-sparkle.key"

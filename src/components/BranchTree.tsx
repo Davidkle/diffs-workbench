@@ -28,13 +28,7 @@ export function BranchTree({
   ].sort();
   return (
     <>
-      {leaves
-        .sort(
-          (a, b) =>
-            Number(b.current) - Number(a.current) ||
-            a.name.localeCompare(b.name),
-        )
-        .map(renderBranch)}
+      {leaves.sort((a, b) => a.name.localeCompare(b.name)).map(renderBranch)}
       {folders.map((folder) => (
         <BranchFolder
           key={folder}

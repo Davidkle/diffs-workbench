@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Virtualizer } from "@pierre/diffs/react";
 import { PreparedDiff, type ChangeNavigation } from "@/components/PreparedDiff";
+import { DIFF_THEME } from "@/diff-theme";
 import {
   FileCode2,
   Columns2,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SvgPreview } from "@/components/SvgPreview";
+import { MediaPreview } from "@/components/MediaPreview";
 import { usePersistentBoolean } from "@/use-persistent-boolean";
 import { Image, ImageOff } from "lucide-react";
 import type { FileContent } from "@/types";
@@ -52,7 +54,7 @@ export function DiffPane({
   useEffect(() => setResolution(content?.current || ""), [content]);
   const options = useMemo(
     () => ({
-      theme: "pierre-dark" as const,
+      theme: DIFF_THEME,
       themeType: "dark" as const,
       diffStyle: split ? ("split" as const) : ("unified" as const),
       expandUnchanged: full,
@@ -62,37 +64,37 @@ export function DiffPane({
       diffIndicators: "classic" as const,
       hunkSeparators: "line-info" as const,
       unsafeCSS:
-        ':host { --diffs-font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; --diffs-font-size: 12px; --diffs-line-height: 19px; } [data-code] { background: #222225; }',
+        ':host { --diffs-bg: var(--editor-background); --diffs-font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; --diffs-font-size: 12px; --diffs-line-height: 19px; } [data-line-type="change-addition"], [data-line-type="change-deletion"] { --mix-dark: 0%; --mix-light: 0%; }',
     }),
     [split, full, wrap],
   );
   return (
-    <section className="diff-pane">
+    <section className="diff-pane" aria-busy={loading}>
       <div className="diff-toolbar">
         <div className="file-name">
           <FileCode2 size={14} />
           <span>{content?.path || "No file selected"}</span>
         </div>
         <div className="diff-controls">
-          <Button
-            title="SVG previews (all projects)"
-            aria-label="Show SVG previews"
-            variant="ghost"
-            size="icon"
-            className={showSvg ? "active-control" : ""}
-            aria-pressed={showSvg}
-            onClick={() => setShowSvg(!showSvg)}
-          >
-            {showSvg ? <Image size={15} /> : <ImageOff size={15} />}
-          </Button>
+          {isSvg && (
+            <Button
+              title="SVG previews (all projects)"
+              aria-label="Show SVG previews"
+              variant="ghost"
+              size="icon"
+              className={showSvg ? "active-control" : ""}
+              aria-pressed={showSvg}
+              onClick={() => setShowSvg(!showSvg)}
+            >
+              {showSvg ? <Image size={15} /> : <ImageOff size={15} />}
+            </Button>
+          )}
           <Button
             title="Previous change"
             aria-label="Previous change"
             variant="ghost"
             size="icon"
-            disabled={
-              loading || fileMode || !content || content.binary || !changeCount
-            }
+            disabled={fileMode || !content || content.binary || !changeCount}
             onClick={() => navigation.current?.jump(-1)}
           >
             <ChevronUp size={15} />
@@ -102,9 +104,7 @@ export function DiffPane({
             aria-label="Next change"
             variant="ghost"
             size="icon"
-            disabled={
-              loading || fileMode || !content || content.binary || !changeCount
-            }
+            disabled={fileMode || !content || content.binary || !changeCount}
             onClick={() => navigation.current?.jump(1)}
           >
             <ChevronDown size={15} />
@@ -112,6 +112,7 @@ export function DiffPane({
           <span className="separator" />
           <Button
             title="Wrap lines"
+            disabled={!!content?.binary}
             aria-label="Wrap lines"
             variant="ghost"
             size="icon"
@@ -123,6 +124,7 @@ export function DiffPane({
           </Button>
           <Button
             title="Full file"
+            disabled={!!content?.binary}
             aria-label="Full file"
             variant="ghost"
             size="icon"
@@ -146,6 +148,7 @@ export function DiffPane({
           </Button>
           <Button
             title="Toggle split diff"
+            disabled={!!content?.binary}
             aria-label="Toggle split diff"
             variant="ghost"
             size="icon"
@@ -157,21 +160,26 @@ export function DiffPane({
           </Button>
         </div>
       </div>
+      {loading && content && (
+        <span className="diff-loading-indicator" role="status">
+          Loading file…
+        </span>
+      )}
       <Virtualizer className="diff-content" config={{ overscrollSize: 500 }}>
-        {!loading && isSvg && showSvg && content && (
+        {isSvg && showSvg && content && (
           <SvgPreview content={content} fileMode={fileMode} />
         )}
-        {loading ? (
+        {loading && !content ? (
           <div className="empty">
             <span className="spinner" />
             Loading file…
           </div>
         ) : !content ? (
           <div className="empty">
-            <Check size={32} />
-            <h3>All clear</h3>
-            <p>Select a commit or open a file to explore your code.</p>
+            <p>Select a file to view changes.</p>
           </div>
+        ) : content.mediaType ? (
+          <MediaPreview content={content} fileMode={fileMode} />
         ) : content.binary ? (
           <div className="empty">
             <FileCode2 size={32} />
@@ -237,6 +245,9 @@ export function DiffPane({
             options={options}
             fileMode={fileMode}
           />
+        )}
+        {content && !content.binary && (
+          <div className="diff-scroll-space" aria-hidden="true" />
         )}
       </Virtualizer>
     </section>

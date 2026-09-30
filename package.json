@@ -1,5 +1,5 @@
 {
-  "name": "diffs-workbench",
+  "name": "donkey-diff",
   "version": "0.1.8",
   "private": true,
   "type": "module",
@@ -8,16 +8,19 @@
     "bridge": "tsx bridge/server.ts",
     "build": "tsc -b && vite build && npm run build:bridge",
     "build:bridge": "esbuild bridge/server.ts --bundle --platform=node --format=esm --packages=external --outfile=build/bridge.mjs",
-    "test": "node --import tsx --test bridge/*.test.ts src/*.test.ts",
+    "test": "node --import tsx --test bridge/*.test.ts src/*.test.ts desktop/*.test.cjs",
     "preview": "vite preview --host 127.0.0.1",
     "ts-check": "tsc --noEmit",
     "lint": "eslint src bridge",
     "format": "prettier --write src bridge *.json *.ts *.md .github/workflows/*.yml",
     "desktop": "npm run build && electron .",
-    "package:mac": "npm run build && electron-builder --mac --arm64"
+    "package:mac": "npm run build && npm run build:sparkle && electron-builder --mac --arm64",
+    "build:sparkle": "node scripts/build-sparkle.mjs",
+    "prepare:update": "node scripts/prepare-update.mjs"
   },
   "dependencies": {
     "@pierre/diffs": "1.5.1",
+    "@radix-ui/react-context-menu": "^2.3.7",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-switch": "^1.2.6",
@@ -29,7 +32,9 @@
     "react-dom": "^19.1.0",
     "react-resizable-panels": "^4.14.1",
     "sonner": "^2.0.7",
+    "streamdown": "^2.6.0",
     "tailwind-merge": "^3.3.1",
+    "use-stick-to-bottom": "^1.1.6",
     "zod": "^4.1.5"
   },
   "devDependencies": {
@@ -46,6 +51,7 @@
     "esbuild": "^0.25.9",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "node-api-headers": "^1.9.0",
     "prettier": "^3.9.9",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.20.5",
@@ -54,12 +60,12 @@
     "vite": "^7.1.5"
   },
   "main": "desktop/main.cjs",
-  "description": "A local-first Git workbench",
+  "description": "Open source Git client for Mac",
   "author": "David Le",
   "license": "MIT",
   "build": {
-    "appId": "com.davidkle.diffs",
-    "productName": "Diffs",
+    "appId": "com.davidkle.donkeydiff",
+    "productName": "Donkey Diff",
     "directories": {
       "output": "release"
     },
@@ -71,6 +77,7 @@
     ],
     "asar": false,
     "mac": {
+      "icon": "desktop/assets/icon.icns",
       "category": "public.app-category.developer-tools",
       "target": [
         "dir",
@@ -78,6 +85,13 @@
       ],
       "identity": null
     },
-    "artifactName": "Diffs-${version}-${arch}.${ext}"
+    "artifactName": "Donkey-Diff-${version}-${arch}.${ext}",
+    "afterPack": "scripts/package-sparkle.cjs",
+    "extraResources": [
+      {
+        "from": "build/sparkle.node",
+        "to": "sparkle.node"
+      }
+    ]
   }
 }

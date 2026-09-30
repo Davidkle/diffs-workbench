@@ -1,18 +1,19 @@
 import type {
   Action,
   ChangedFile,
+  Commit,
   FileContent,
   Project,
   Snapshot,
 } from "@/types";
 const base = "http://127.0.0.1:43127";
 export function getToken() {
-  return window.diffsDesktop
+  return window.donkeyDiffDesktop
     ? "desktop"
-    : sessionStorage.getItem("diffs-token") || "";
+    : sessionStorage.getItem("donkey-diff-token") || "";
 }
 export function setToken(token: string) {
-  sessionStorage.setItem("diffs-token", token);
+  sessionStorage.setItem("donkey-diff-token", token);
 }
 export function capturePairingToken() {
   const hash = new URLSearchParams(location.hash.slice(1));
@@ -22,13 +23,18 @@ export function capturePairingToken() {
   }
 }
 capturePairingToken();
-async function request<T>(
+export async function request<T>(
   route: string,
   method = "GET",
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
-  if (window.diffsDesktop) {
-    const result = await window.diffsDesktop.request<T>(route, method, body);
+  if (window.donkeyDiffDesktop) {
+    const result = await window.donkeyDiffDesktop.request<T>(
+      route,
+      method,
+      body,
+    );
     if (!result.ok) throw new Error(result.error);
     return result.data;
   }
@@ -41,11 +47,15 @@ async function request<T>(
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(70000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(70000)])
+        : AbortSignal.timeout(70000),
     });
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     throw new Error(
       "Local bridge is offline. Start it on this computer, then reconnect.",
+      { cause: error },
     );
   }
   const json = await response.json();
@@ -57,6 +67,9 @@ export const bridge = {
   add: (path: string) => request<Project>("/projects", "POST", { path }),
   remove: (id: string) => request<{ ok: boolean }>(`/projects/${id}`, "DELETE"),
   snapshot: (id: string) => request<Snapshot>(`/projects/${id}`),
+  navigation: (id: string) => request<Snapshot>(`/projects/${id}/navigation`),
+  history: (id: string, ref: string) =>
+    request<Commit[]>(`/projects/${id}/history?ref=${encodeURIComponent(ref)}`),
   files: (id: string, commit?: string, base?: string) =>
     request<ChangedFile[]>(
       `/projects/${id}/files${commit ? `?commit=${commit}${base ? `&base=${base}` : ""}` : ""}`,
@@ -71,9 +84,13 @@ export const bridge = {
     commit?: string,
     base?: string,
     layer?: "staged" | "unstaged",
+    signal?: AbortSignal,
   ) =>
     request<FileContent>(
       `/projects/${id}/file?path=${encodeURIComponent(path)}${commit ? `&commit=${commit}` : ""}${base ? `&base=${base}` : ""}${layer ? `&layer=${layer}` : ""}`,
+      "GET",
+      undefined,
+      signal,
     ),
   action: (id: string, action: Action, input: Record<string, string> = {}) =>
     request<{ message: string }>(`/projects/${id}/action`, "POST", {

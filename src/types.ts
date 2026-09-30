@@ -19,6 +19,8 @@ export type Commit = {
   refs: string;
 };
 export type Branch = {
+  ref?: string;
+  remote?: boolean;
   name: string;
   current: boolean;
   upstream: string;
@@ -49,6 +51,8 @@ export type FileContent = {
   path: string;
   old: string;
   current: string;
+  /** Media sides contain data URLs instead of decoded text. */
+  mediaType?: string;
   binary: boolean;
   conflict: boolean;
   ours?: string;

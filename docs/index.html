@@ -5,101 +5,263 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Donkey Diff — a local-first Git workbench."
+      content="Donkey Diff is a free, open source Git client for Mac. Review changes, manage branches and worktrees, and use Codex or Claude in your projects."
     />
-    <meta name="theme-color" content="#171717" />
-    <title>Donkey Diff</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #171717;
-        color: #f4f4f4;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-      }
-
-      main {
-        width: min(1120px, 100% - 40px);
-        margin: 0 auto;
-        padding: 64px 0 40px;
-        text-align: center;
-      }
-
-      h1 {
-        margin: 0;
-        font-size: clamp(36px, 6vw, 56px);
-        font-weight: 650;
-        letter-spacing: -0.045em;
-      }
-
-      p {
-        margin: 12px 0 32px;
-        color: #b0b0b0;
-        font-size: clamp(16px, 2.5vw, 20px);
-        line-height: 1.5;
-      }
-
-      video {
-        display: block;
-        width: 100%;
-        height: auto;
-        aspect-ratio: 1920 / 1204;
-        background: #242424;
-        border: 1px solid #383838;
-        border-radius: 12px;
-      }
-
-      a {
-        display: inline-block;
-        margin-top: 28px;
-        padding: 8px;
-        color: inherit;
-        font-size: 15px;
-        text-underline-offset: 4px;
-      }
-
-      a:hover {
-        color: #b0b0b0;
-      }
-      a:focus-visible {
-        outline: 2px solid #89b4fa;
-        outline-offset: 4px;
-      }
-
-      @media (max-width: 600px) {
-        main {
-          width: calc(100% - 24px);
-          padding-top: 40px;
-        }
-        video {
-          border-radius: 8px;
-        }
-      }
-    </style>
+    <meta name="theme-color" content="#171817" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>Donkey Diff — Open source Git client for Mac</title>
   </head>
   <body>
-    <main>
-      <h1>Donkey Diff</h1>
-      <p>A local-first Git workbench.</p>
-      <video
-        controls
-        playsinline
-        preload="metadata"
-        poster="./poster.jpg"
-        aria-label="Donkey Diff demo"
-        width="1920"
-        height="1204"
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header wrap">
+      <a class="brand" href="./" aria-label="Donkey Diff home"
+        ><img src="./icon.png" alt="" width="36" height="36" />Donkey Diff</a
       >
-        <source src="./demo.mp4" type="video/mp4" />
-        <a href="./demo.mp4">Watch the demo</a>
-      </video>
-      <a href="https://github.com/DonkeyCut/donkey-diff">GitHub ↗</a>
+      <nav aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="https://github.com/DonkeyCut/donkey-diff">GitHub</a>
+        <a
+          class="button button-small"
+          href="https://github.com/DonkeyCut/donkey-diff/releases/latest"
+          >Download for Mac</a
+        >
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero wrap" aria-labelledby="hero-title">
+        <div>
+          <h1 id="hero-title">Open source Git client for Mac.</h1>
+          <p class="intro">
+            Review changes, manage branches, and commit your work.
+          </p>
+          <div class="actions">
+            <a
+              class="button"
+              href="https://github.com/DonkeyCut/donkey-diff/releases/latest"
+              >Download for Mac</a
+            >
+            <a class="text-link" href="#demo">Watch the demo</a>
+          </div>
+        </div>
+        <img
+          class="hero-icon"
+          src="./icon.png"
+          alt="Donkey Diff app icon"
+          width="280"
+          height="280"
+        />
+      </section>
+
+      <section class="demo wrap" id="demo" aria-label="Donkey Diff demo">
+        <video
+          controls
+          playsinline
+          preload="none"
+          poster="./poster.jpg"
+          aria-label="Donkey Diff product demo"
+          width="1920"
+          height="1204"
+        >
+          <source src="./demo.mp4" type="video/mp4" />
+          <a href="./demo.mp4">Watch the demo</a>
+        </video>
+      </section>
+
+      <div id="features" class="wrap">
+        <section class="feature" aria-labelledby="review-title">
+          <div class="feature-copy">
+            <h2 id="review-title">Diff viewer</h2>
+            <p>
+              Read diffs side by side or in a single view. Expand the full file
+              when you need more context, and filter the file tree to find what
+              you’re looking for.
+            </p>
+          </div>
+          <figure class="visual">
+            <a
+              href="./screenshots/diff.png"
+              aria-label="View full diff screenshot"
+              ><img
+                src="./screenshots/diff.png"
+                alt="Syntax-highlighted code changes in Donkey Diff"
+                width="647"
+                height="466"
+                loading="lazy"
+            /></a>
+          </figure>
+        </section>
+
+        <section class="feature" aria-labelledby="commit-title">
+          <div class="feature-copy">
+            <h2 id="commit-title">Staging and commits</h2>
+            <p>
+              Double-click a file or folder to stage it. Review your staged
+              changes, write a message, and commit. Everything else stays in
+              your working directory.
+            </p>
+          </div>
+          <figure class="visual">
+            <a
+              href="./screenshots/staging.png"
+              aria-label="View full staging screenshot"
+              ><img
+                src="./screenshots/staging.png"
+                alt="Real staged and unstaged files with the commit form"
+                width="918"
+                height="638"
+                loading="lazy"
+            /></a>
+          </figure>
+        </section>
+
+        <section class="feature" aria-labelledby="branches-title">
+          <div class="feature-copy">
+            <h2 id="branches-title">Branches and worktrees</h2>
+            <p>
+              Switch between projects in tabs. Create a branch for a change, or
+              open a worktree to keep another branch checked out in its own
+              folder.
+            </p>
+          </div>
+          <figure class="visual">
+            <a
+              href="./screenshots/branches.png"
+              aria-label="View full branches screenshot"
+              ><img
+                src="./screenshots/branches.png"
+                alt="Donkey Diff repository sidebar with branches and worktrees"
+                width="361"
+                height="324"
+                loading="lazy"
+            /></a>
+          </figure>
+        </section>
+
+        <section class="feature" aria-labelledby="history-title">
+          <div class="feature-copy">
+            <h2 id="history-title">Commit history</h2>
+            <p>
+              Browse recent commits and inspect the files they changed. Select
+              two commits to compare their snapshots and see the difference
+              between them.
+            </p>
+          </div>
+          <figure class="visual">
+            <a
+              href="./screenshots/history.png"
+              aria-label="View full history screenshot"
+              ><img
+                src="./screenshots/history.png"
+                alt="Donkey Diff commit graph and repository history"
+                width="918"
+                height="401"
+                loading="lazy"
+            /></a>
+          </figure>
+        </section>
+
+        <section class="feature" aria-labelledby="assets-title">
+          <div class="feature-copy">
+            <h2 id="assets-title">Inline asset previews</h2>
+            <p>
+              See SVG assets rendered alongside their source. Compare before and
+              after previews in a diff, or preview the current SVG while
+              browsing files.
+            </p>
+          </div>
+          <figure class="visual">
+            <a
+              href="./screenshots/assets.png"
+              aria-label="View full assets screenshot"
+              ><img
+                src="./screenshots/assets.png"
+                alt="An SVG file rendered inline in Donkey Diff"
+                width="647"
+                height="497"
+                loading="lazy"
+            /></a>
+          </figure>
+        </section>
+
+        <section class="feature" aria-labelledby="chat-title">
+          <div class="feature-copy">
+            <h2 id="chat-title">Codex and Claude</h2>
+            <p>
+              Ask an agent to explain code, make an edit, or review your
+              changes.
+            </p>
+          </div>
+          <figure class="visual">
+            <a
+              href="./screenshots/chat.png"
+              aria-label="View full chat screenshot"
+              ><img
+                src="./screenshots/chat.png"
+                alt="An existing project conversation in Donkey Diff"
+                width="643"
+                height="638"
+                loading="lazy"
+            /></a>
+          </figure>
+        </section>
+      </div>
+
+      <section class="everyday" aria-labelledby="everyday-title">
+        <div class="wrap">
+          <h2 id="everyday-title">Feature overview</h2>
+          <div class="feature-grid">
+            <article>
+              <h3>Git basics</h3>
+              <ul>
+                <li>Fetch, pull, and push</li>
+                <li>File and folder staging</li>
+                <li>Commit staged changes</li>
+                <li>Create and manage stashes</li>
+                <li>Optional automatic sync</li>
+              </ul>
+            </article>
+            <article>
+              <h3>Repositories</h3>
+              <ul>
+                <li>Multiple project tabs</li>
+                <li>Local branch management</li>
+                <li>Create and manage worktrees</li>
+                <li>Browse repository files</li>
+                <li>Saved panel sizes</li>
+              </ul>
+            </article>
+            <article>
+              <h3>Code review</h3>
+              <ul>
+                <li>Unified and split diffs</li>
+                <li>Syntax highlighting</li>
+                <li>Full-file context</li>
+                <li>Inline SVG asset previews</li>
+                <li>Compare two commits</li>
+                <li>Edit and stage conflict resolutions</li>
+              </ul>
+            </article>
+            <article>
+              <h3>Project chat</h3>
+              <ul>
+                <li>Codex and Claude CLI support</li>
+                <li>Model selection</li>
+                <li>Streaming replies and activity</li>
+                <li>Repository slash commands</li>
+                <li>Saved conversations</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
+    <footer class="wrap">
+      <a class="brand" href="./"
+        ><img src="./icon.png" alt="" width="28" height="28" />Donkey Diff</a
+      >
+      <p>Open source under the MIT license.</p>
+      <a href="https://github.com/DonkeyCut/donkey-diff">View source</a>
+    </footer>
   </body>
 </html>

@@ -21,7 +21,9 @@ type Props = {
 };
 
 export function WorkspaceLayout(props: Props) {
-  return <SavedWorkspaceLayout key={props.projectId} {...props} />;
+  // Panel geometry belongs to the workspace chrome, not a repository. Keep
+  // every panel mounted when a tab/worktree changes to preserve DOM and focus.
+  return <SavedWorkspaceLayout {...props} projectId="shared" />;
 }
 function SavedWorkspaceLayout({ children, leading, kind, projectId }: Props) {
   const mobile = useSyncExternalStore(subscribe, getMobile);
@@ -33,7 +35,10 @@ function SavedWorkspaceLayout({ children, leading, kind, projectId }: Props) {
           return (
             localStorage.getItem(key) ??
             localStorage.getItem(
-              key.replace(`diffs-layout-${projectId}-`, "diffs-layout-"),
+              key.replace(
+                `donkey-diff-layout-${projectId}-`,
+                "donkey-diff-layout-",
+              ),
             )
           );
         } catch {
@@ -53,7 +58,7 @@ function SavedWorkspaceLayout({ children, leading, kind, projectId }: Props) {
   const leadingId = `${kind}-leading`;
   const contentId = `${kind}-content`;
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: `diffs-layout-${projectId}-${kind}-${mobile ? "compact" : "desktop"}`,
+    id: `donkey-diff-layout-${projectId}-${kind}-${mobile ? "compact" : "desktop"}`,
     storage,
     panelIds: leading ? [leadingId, contentId] : [contentId],
     onlySaveAfterUserInteractions: true,
@@ -104,7 +109,6 @@ function SavedWorkspaceLayout({ children, leading, kind, projectId }: Props) {
             {leading}
           </ResizablePanel>
           <ResizableHandle
-            withHandle
             aria-label={label}
             className="workspace-resize-handle"
           />

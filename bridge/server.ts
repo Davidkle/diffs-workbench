@@ -14,6 +14,7 @@ import {
   git,
   validateRepo,
   snapshot,
+  commitHistory,
   changedFiles,
   fileContent,
   sync,
@@ -21,11 +22,13 @@ import {
   safeFile,
 } from "./git.js";
 import type { Project } from "../src/types.js";
+import { ChatService } from "./chat.js";
 const app = express();
-const port = Number(process.env.DIFFS_PORT || 43127);
+const port = Number(process.env.DONKEY_DIFF_PORT || 43127);
 const dataDir =
-  process.env.DIFFS_DATA_DIR || path.join(os.homedir(), ".diffs-workbench");
+  process.env.DONKEY_DIFF_DATA_DIR || path.join(os.homedir(), ".donkey-diff");
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
+const chats = new ChatService(dataDir);
 const statePath = path.join(dataDir, "projects.json");
 const tokenPath = path.join(dataDir, "token");
 let token: string;
@@ -88,7 +91,8 @@ const origins = new Set([
   "http://localhost:4173",
   "http://127.0.0.1:4173",
   ...(
-    process.env.DIFFS_ALLOWED_ORIGINS || "https://diffs-workbench.vercel.app"
+    process.env.DONKEY_DIFF_ALLOWED_ORIGINS ||
+    "https://diffs-workbench.vercel.app"
   ).split(","),
 ]);
 app.use((req, res, next) => {
@@ -131,7 +135,7 @@ app.use((req, res, next) => {
     return;
   }
   if (req.path === "/health") {
-    res.json({ app: "diffs-workbench", version: "0.1.0" });
+    res.json({ app: "donkey-diff", version: "0.1.0" });
     return;
   }
   const supplied = Buffer.from(
@@ -156,22 +160,80 @@ const projectFor = (id: string) => {
   return project;
 };
 const queues = new Map<string, Promise<unknown>>();
-async function serial<T>(id: string, task: () => Promise<T>): Promise<T> {
-  const previous = queues.get(id) || Promise.resolve();
-  const next = previous.catch(() => undefined).then(task);
-  queues.set(id, next);
+async function serial<T>(
+  ids: string | string[],
+  task: () => Promise<T>,
+): Promise<T> {
+  const keys = [...new Set(typeof ids === "string" ? [ids] : ids)];
+  // Reserve all affected projects together so cross-worktree actions cannot
+  // race chat startup, or deadlock with an action in the opposite direction.
+  const next = Promise.all(
+    keys.map((id) => queues.get(id)?.catch(() => undefined)),
+  ).then(task);
+  for (const id of keys) queues.set(id, next);
   try {
     return await next;
   } finally {
-    if (queues.get(id) === next) queues.delete(id);
+    for (const id of keys) if (queues.get(id) === next) queues.delete(id);
   }
 }
+app.get("/projects/:id/chat", async (req, res) =>
+  res.json(await chats.state(projectFor(req.params.id))),
+);
+app.get("/projects/:id/chat/providers", async (req, res) =>
+  res.json(
+    await chats.providerInfo(
+      projectFor(req.params.id).path,
+      req.query.refresh === "true",
+    ),
+  ),
+);
+const chatInput = z.object({
+  sessionId: z.string().uuid().optional(),
+  provider: z.enum(["codex", "claude"]),
+  model: z.string().max(150),
+  effort: z.enum([
+    "",
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra",
+  ]),
+  text: z.string().trim().min(1).max(50000),
+  skillId: z
+    .string()
+    .regex(/^[a-f0-9]{16}$/)
+    .optional(),
+});
+app.post("/projects/:id/chat/send", async (req, res) => {
+  const project = projectFor(req.params.id);
+  const input = chatInput.parse(req.body);
+  res.json(
+    await serial(project.id, () => chats.send(projectFor(project.id), input)),
+  );
+});
+app.post("/projects/:id/chat/stop", async (req, res) => {
+  const project = projectFor(req.params.id);
+  const { sessionId } = z
+    .object({ sessionId: z.string().uuid() })
+    .parse(req.body);
+  res.json(await chats.stop(project.id, sessionId));
+});
+app.get("/chat-status", (_req, res) =>
+  res.json({ running: chats.hasRunning() }),
+);
 app.get("/projects", (_req, res) => res.json(projects));
 app.post("/projects", async (req, res) => {
   const { path: input } = z.object({ path: z.string().min(1) }).parse(req.body);
   res.json(await addProject(input));
 });
 app.delete("/projects/:id", async (req, res) => {
+  if (chats.isRunning(req.params.id))
+    throw new Error("Stop this project’s chat before removing it");
   projects = projects.filter((p) => p.id !== req.params.id);
   await save();
   res.json({ ok: true });
@@ -179,6 +241,13 @@ app.delete("/projects/:id", async (req, res) => {
 app.get("/projects/:id", async (req, res) =>
   res.json(await snapshot(projectFor(req.params.id))),
 );
+app.get("/projects/:id/navigation", async (req, res) =>
+  res.json(await snapshot(projectFor(req.params.id), true)),
+);
+app.get("/projects/:id/history", async (req, res) => {
+  const ref = z.string().min(1).max(1024).parse(req.query.ref);
+  res.json(await commitHistory(projectFor(req.params.id).path, ref));
+});
 app.get("/projects/:id/files", async (req, res) => {
   const project = projectFor(req.params.id);
   res.json(
@@ -220,6 +289,10 @@ app.get("/projects/:id/file", async (req, res) => {
       layer: z.enum(["staged", "unstaged"]).optional(),
     })
     .parse(req.query);
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
   res.json(
     await fileContent(
       projectFor(req.params.id).path,
@@ -227,6 +300,7 @@ app.get("/projects/:id/file", async (req, res) => {
       commit,
       base,
       layer,
+      controller.signal,
     ),
   );
 });
@@ -270,8 +344,21 @@ async function checkedBranch(cwd: string, name: string | undefined) {
 app.post("/projects/:id/action", async (req, res) => {
   const input = actionSchema.parse(req.body);
   const project = projectFor(req.params.id);
-  const cwd = project.path;
-  const result = await serial(project.id, async () => {
+  const affectedIds = [project.id];
+  if (input.action === "worktree-move" || input.action === "worktree-remove") {
+    const source = await realpath(required(input.from, "Worktree path"));
+    affectedIds.push(
+      projects.find((p) => p.path === source)?.id ||
+        createHash("sha256").update(source).digest("hex").slice(0, 16),
+    );
+  }
+  const result = await serial(affectedIds, async () => {
+    const project = projectFor(req.params.id);
+    const cwd = project.path;
+    if (affectedIds.some((id) => chats.isRunning(id)))
+      throw new Error(
+        "Wait for the affected project’s chat to finish or stop it before running another Git operation",
+      );
     let message = "Done";
     switch (input.action) {
       case "fetch":
@@ -279,7 +366,7 @@ app.post("/projects/:id/action", async (req, res) => {
           (await git(cwd, ["fetch", "--all", "--prune"])) || "Remotes fetched";
         break;
       case "pull":
-        message = await git(cwd, ["pull", "--ff-only"]);
+        message = await git(cwd, ["pull", "--no-rebase", "--ff", "--no-edit"]);
         break;
       case "push": {
         const branch = (
@@ -333,16 +420,25 @@ app.post("/projects/:id/action", async (req, res) => {
       case "worktree-move":
       case "worktree-remove": {
         const source = await realpath(required(input.from, "Worktree path"));
-        const state = await snapshot(project);
+        const state = await snapshot(project, true);
         const tree = state.worktrees.find((w) => w.path === source);
-        if (!tree || source === cwd) throw new Error("Select another worktree");
+        if (!tree) throw new Error("Worktree is no longer registered");
         if (tree.locked) throw new Error("Worktree is locked");
+        // Run from the common Git directory so the currently viewed checkout
+        // can be moved or removed without deleting the command's working directory.
+        const gitDir = (
+          await git(cwd, [
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+          ])
+        ).trim();
         if (input.action === "worktree-remove") {
-          message = await git(cwd, ["worktree", "remove", source]);
+          message = await git(gitDir, ["worktree", "remove", source]);
           projects = projects.filter((p) => p.path !== source);
         } else {
           const dest = path.resolve(required(input.path, "New path"));
-          message = await git(cwd, ["worktree", "move", source, dest]);
+          message = await git(gitDir, ["worktree", "move", source, dest]);
           const canonicalDest = await realpath(dest);
           projects = projects.map((p) =>
             p.path === source
@@ -363,7 +459,7 @@ app.post("/projects/:id/action", async (req, res) => {
           "push",
           "--include-untracked",
           "-m",
-          input.name || "Stashed from Diffs",
+          input.name || "Stashed from Donkey Diff",
         ]);
         break;
       case "stash-apply":
@@ -456,6 +552,12 @@ app.use(
 );
 app.listen(port, "127.0.0.1", () =>
   console.log(
-    `Diffs local bridge listening at http://127.0.0.1:${port}\n${projects.length} repositories available. Pairing key: ${tokenPath}\nAllowed apps: ${[...origins].join(", ")}`,
+    `Donkey Diff local bridge listening at http://127.0.0.1:${port}\n${projects.length} repositories available. Pairing key: ${tokenPath}\nAllowed apps: ${[...origins].join(", ")}`,
   ),
 );
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    void chats.close().finally(() => process.exit(0));
+  });
+}

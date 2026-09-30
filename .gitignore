@@ -1,8 +1,9 @@
 node_modules/
+.DS_Store
 dist/
 build/
 .vercel/
-.diffs/
+.donkey-diff/
 *.local
 *.tsbuildinfo
 .env*
@@ -10,3 +11,7 @@ build/
 .vercel
 
 release/
+
+.cache/
+test-results/
+playwright-report/

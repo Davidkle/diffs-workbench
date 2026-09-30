@@ -27,13 +27,14 @@ export async function assertProjectDirectory(cwd: string) {
     );
   }
 }
-export async function git(cwd: string, args: string[]) {
+export async function git(cwd: string, args: string[], signal?: AbortSignal) {
   try {
     return (
       await exec("git", ["-c", "core.quotepath=false", ...args], {
         cwd,
         maxBuffer: 20 * 1024 * 1024,
         timeout: 60000,
+        signal,
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
       })
     ).stdout;
@@ -42,17 +43,23 @@ export async function git(cwd: string, args: string[]) {
     if (e.code === "ENOENT") {
       await assertProjectDirectory(cwd);
       throw new Error(
-        "Git could not be found. Install Git or reopen Diffs after updating your Git installation.",
+        "Git could not be found. Install Git or reopen Donkey Diff after updating your Git installation.",
         { cause: error },
       );
     }
     throw new Error(e.stderr?.trim() || e.message, { cause: error });
   }
 }
-async function optional(cwd: string, args: string[], fallback = "") {
+async function optional(
+  cwd: string,
+  args: string[],
+  fallback = "",
+  signal?: AbortSignal,
+) {
   try {
-    return await git(cwd, args);
-  } catch {
+    return await git(cwd, args, signal);
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return fallback;
   }
 }
@@ -94,9 +101,10 @@ export function parseStatus(raw: string): ChangedFile[] {
   return files;
 }
 function addStats(files: ChangedFile[], stats: string) {
+  const byPath = new Map(files.map((file) => [file.path, file]));
   for (const entry of stats.split("\0").filter(Boolean)) {
     const [add, del, ...names] = entry.split("\t");
-    const file = files.find((f) => f.path === names.join("\t"));
+    const file = byPath.get(names.join("\t"));
     if (file) {
       file.additions += Number(add) || 0;
       file.deletions += Number(del) || 0;
@@ -157,28 +165,85 @@ export async function changedFiles(
       "--",
     ]),
   );
-  for (const file of files.filter((f) => f.status === "A" && !f.staged)) {
-    try {
-      const target = await safeFile(cwd, file.path);
-      const stat = await lstat(target);
-      if (stat.isFile() && stat.size <= 5 * 1024 * 1024) {
-        const text = await readFile(target, "utf8");
-        if (!text.includes("\0"))
-          file.additions = text
-            ? text.split("\n").length - Number(text.endsWith("\n"))
-            : 0;
+  const pending = files.filter((f) => f.status === "A" && !f.staged);
+  await Promise.all(
+    Array.from({ length: Math.min(8, pending.length) }, async () => {
+      let file: ChangedFile | undefined;
+      while ((file = pending.shift())) {
+        try {
+          const target = await safeFile(cwd, file.path);
+          const stat = await lstat(target);
+          if (stat.isFile() && stat.size <= 5 * 1024 * 1024) {
+            const text = await readFile(target, "utf8");
+            if (!text.includes("\0"))
+              file.additions = text
+                ? text.split("\n").length - Number(text.endsWith("\n"))
+                : 0;
+          }
+        } catch {
+          /* Unreadable and symbolic-link entries remain listed. */
+        }
       }
-    } catch {
-      /* Unreadable and symbolic-link entries remain listed. */
-    }
-  }
+    }),
+  );
   return files;
 }
 async function validateCommit(cwd: string, commit: string) {
   if (!/^[a-f0-9]{7,40}$/.test(commit)) throw new Error("Invalid commit");
   await git(cwd, ["cat-file", "-e", `${commit}^{commit}`]);
 }
-export async function snapshot(project: Project): Promise<Snapshot> {
+export async function commitHistory(
+  cwd: string,
+  ref: string,
+): Promise<Commit[]> {
+  await assertProjectDirectory(cwd);
+  if (
+    ref === "HEAD" &&
+    !(await optional(cwd, ["rev-parse", "--verify", "HEAD"])).trim()
+  )
+    return [];
+  const hash = (
+    await git(cwd, [
+      "rev-parse",
+      "--verify",
+      "--end-of-options",
+      `${ref}^{commit}`,
+    ])
+  ).trim();
+  return parseCommits(
+    await git(cwd, [
+      "log",
+      "-150",
+      "--topo-order",
+      "--format=%H%x09%h%x09%P%x09%an%x09%aI%x09%D%x09%s",
+      hash,
+      "--",
+    ]),
+  );
+}
+function parseCommits(logs: string): Commit[] {
+  return logs
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, short, parents, author, date, refs, ...subject] =
+        line.split("\t");
+      return {
+        hash,
+        short,
+        parents,
+        author,
+        date,
+        refs,
+        subject: subject.join("\t"),
+      };
+    });
+}
+export async function snapshot(
+  project: Project,
+  navigationOnly = false,
+): Promise<Snapshot> {
   const cwd = project.path;
   await assertProjectDirectory(cwd);
   const [
@@ -192,12 +257,13 @@ export async function snapshot(project: Project): Promise<Snapshot> {
     logs,
     tracking,
   ] = await Promise.all([
-    changedFiles(cwd),
+    navigationOnly ? Promise.resolve([]) : changedFiles(cwd),
     optional(cwd, ["symbolic-ref", "--short", "HEAD"], "detached"),
     git(cwd, [
       "for-each-ref",
-      "--format=%(refname:short)%09%(HEAD)%09%(upstream:short)%09%(upstream:track)",
+      "--format=%(refname:short)%09%(HEAD)%09%(upstream:short)%09%(upstream:track)%09%(refname)",
       "refs/heads",
+      "refs/remotes",
     ]),
     git(cwd, ["worktree", "list", "--porcelain"]),
     optional(cwd, ["stash", "list", "--format=%gd%x09%s"]),
@@ -206,7 +272,8 @@ export async function snapshot(project: Project): Promise<Snapshot> {
     optional(cwd, [
       "log",
       "-150",
-      "--format=%H%x09%h%x09%p%x09%an%x09%aI%x09%D%x09%s",
+      "--topo-order",
+      "--format=%H%x09%h%x09%P%x09%an%x09%aI%x09%D%x09%s",
     ]),
     optional(
       cwd,
@@ -231,23 +298,7 @@ export async function snapshot(project: Project): Promise<Snapshot> {
         locked: lines.some((l) => l.startsWith("locked")),
       };
     });
-  const commits: Commit[] = logs
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [hash, short, parents, author, date, refs, ...subject] =
-        line.split("\t");
-      return {
-        hash,
-        short,
-        parents,
-        author,
-        date,
-        refs,
-        subject: subject.join("\t"),
-      };
-    });
+  const commits = parseCommits(logs);
   const [ahead, behind] = tracking.trim().split(/\s+/).map(Number);
   return {
     project,
@@ -258,8 +309,15 @@ export async function snapshot(project: Project): Promise<Snapshot> {
       .split("\n")
       .filter(Boolean)
       .map((line) => {
-        const [name, current, upstream, track] = line.split("\t");
-        return { name, current: current === "*", upstream, track };
+        const [name, current, upstream, track, ref] = line.split("\t");
+        return {
+          name,
+          current: current === "*",
+          upstream,
+          track,
+          ref,
+          remote: ref.startsWith("refs/remotes/"),
+        };
       }),
     worktrees,
     stashes: stashes
@@ -299,12 +357,65 @@ export async function safeFile(cwd: string, name: string) {
   }
   return target;
 }
+const mediaTypes: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".webm": "video/webm",
+  ".ogv": "video/ogg",
+  ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".flac": "audio/flac",
+};
+const mediaLimit = 20 * 1024 * 1024;
+function checkMediaSize(size: number) {
+  if (size > mediaLimit)
+    throw new Error("Media exceeds the 20 MB preview limit");
+}
+function mediaUrl(bytes: Buffer, type: string) {
+  return bytes.length ? `data:${type};base64,${bytes.toString("base64")}` : "";
+}
+async function gitMedia(
+  cwd: string,
+  revision: string,
+  type: string,
+  signal?: AbortSignal,
+) {
+  // Missing sides (additions, deletions, root commits) have no preview.
+  const oid = (
+    await optional(cwd, ["rev-parse", "--verify", revision], "", signal)
+  ).trim();
+  if (!oid) return "";
+  checkMediaSize(Number(await git(cwd, ["cat-file", "-s", oid], signal)));
+  const { stdout } = await exec("git", ["cat-file", "blob", oid], {
+    cwd,
+    encoding: "buffer",
+    maxBuffer: mediaLimit,
+    timeout: 60000,
+    signal,
+  });
+  return mediaUrl(stdout, type);
+}
 export async function fileContent(
   cwd: string,
   name: string,
   commit?: string,
   base?: string,
   layer?: "staged" | "unstaged",
+  signal?: AbortSignal,
 ): Promise<FileContent> {
   const target = await safeFile(cwd, name);
   if (base && !commit) throw new Error("A target commit is required");
@@ -312,34 +423,80 @@ export async function fileContent(
   const files = commit
     ? []
     : parseStatus(
-        await git(cwd, [
-          "status",
-          "--porcelain=v1",
-          "-z",
-          "--untracked-files=all",
-        ]),
+        await git(
+          cwd,
+          [
+            "--literal-pathspecs",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            ...(layer === "unstaged" ? ["--", name] : []),
+          ],
+          signal,
+        ),
       );
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
   const oldName = layer === "unstaged" ? name : changed?.oldPath || name;
-  const old = await optional(cwd, [
-    "show",
-    `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
-  ]);
-  let current = "";
-  if (commit) current = await optional(cwd, ["show", `${commit}:${name}`]);
-  else if (layer === "staged")
-    current = await optional(cwd, ["show", `:${name}`]);
-  else {
-    try {
-      const stat = await lstat(target);
-      if (stat.size > 5 * 1024 * 1024)
-        throw new Error("File exceeds the 5 MB viewing limit");
-      current = await readFile(target, "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
+  const mediaType = mediaTypes[path.extname(name).toLowerCase()];
+  if (mediaType) {
+    const oldRevision = `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`;
+    const currentRead = async () => {
+      if (commit || layer === "staged")
+        return gitMedia(cwd, `${commit || ""}:${name}`, mediaType, signal);
+      try {
+        checkMediaSize((await lstat(target)).size);
+        const bytes = await readFile(target, { signal });
+        checkMediaSize(bytes.length);
+        return mediaUrl(bytes, mediaType);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        return "";
+      }
+    };
+    const [old, current] = await Promise.all([
+      gitMedia(cwd, oldRevision, mediaType, signal),
+      currentRead(),
+    ]);
+    return {
+      path: name,
+      old,
+      current,
+      mediaType,
+      binary: true,
+      conflict: changed?.conflict || false,
+    };
   }
+  const oldRead = optional(
+    cwd,
+    [
+      "show",
+      `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
+    ],
+    "",
+    signal,
+  );
+  // Read both sides concurrently; every process belongs to this cancellable request.
+  const currentRead = async () => {
+    let current = "";
+    if (commit)
+      current = await optional(cwd, ["show", `${commit}:${name}`], "", signal);
+    else if (layer === "staged")
+      current = await optional(cwd, ["show", `:${name}`], "", signal);
+    else {
+      try {
+        const stat = await lstat(target);
+        if (stat.size > 5 * 1024 * 1024)
+          throw new Error("File exceeds the 5 MB viewing limit");
+        current = await readFile(target, { encoding: "utf8", signal });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+    return current;
+  };
+  const [old, current] = await Promise.all([oldRead, currentRead()]);
   const conflict = changed?.conflict || false;
   return {
     path: name,
@@ -349,8 +506,8 @@ export async function fileContent(
     conflict,
     ...(conflict
       ? {
-          ours: await optional(cwd, ["show", `:2:${name}`]),
-          theirs: await optional(cwd, ["show", `:3:${name}`]),
+          ours: await optional(cwd, ["show", `:2:${name}`], "", signal),
+          theirs: await optional(cwd, ["show", `:3:${name}`], "", signal),
         }
       : {}),
   };
@@ -365,6 +522,19 @@ export async function sync(cwd: string) {
     !(await optional(cwd, ["rev-parse", "--abbrev-ref", "@{upstream}"])).trim()
   )
     return "Fetched · no upstream configured";
+  const [ahead, behind] = (
+    await git(cwd, [
+      "rev-list",
+      "--left-right",
+      "--count",
+      "HEAD...@{upstream}",
+    ])
+  )
+    .trim()
+    .split(/\s+/)
+    .map(Number);
+  if (ahead && behind)
+    return "Fetched · branches have diverged; use Pull to merge";
   await git(cwd, ["pull", "--ff-only"]);
   return "Up to date";
 }
