@@ -357,6 +357,58 @@ export async function safeFile(cwd: string, name: string) {
   }
   return target;
 }
+const mediaTypes: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".webm": "video/webm",
+  ".ogv": "video/ogg",
+  ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".flac": "audio/flac",
+};
+const mediaLimit = 20 * 1024 * 1024;
+function checkMediaSize(size: number) {
+  if (size > mediaLimit)
+    throw new Error("Media exceeds the 20 MB preview limit");
+}
+function mediaUrl(bytes: Buffer, type: string) {
+  return bytes.length ? `data:${type};base64,${bytes.toString("base64")}` : "";
+}
+async function gitMedia(
+  cwd: string,
+  revision: string,
+  type: string,
+  signal?: AbortSignal,
+) {
+  // Missing sides (additions, deletions, root commits) have no preview.
+  const oid = (
+    await optional(cwd, ["rev-parse", "--verify", revision], "", signal)
+  ).trim();
+  if (!oid) return "";
+  checkMediaSize(Number(await git(cwd, ["cat-file", "-s", oid], signal)));
+  const { stdout } = await exec("git", ["cat-file", "blob", oid], {
+    cwd,
+    encoding: "buffer",
+    maxBuffer: mediaLimit,
+    timeout: 60000,
+    signal,
+  });
+  return mediaUrl(stdout, type);
+}
 export async function fileContent(
   cwd: string,
   name: string,
@@ -387,6 +439,35 @@ export async function fileContent(
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
   const oldName = layer === "unstaged" ? name : changed?.oldPath || name;
+  const mediaType = mediaTypes[path.extname(name).toLowerCase()];
+  if (mediaType) {
+    const oldRevision = `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`;
+    const currentRead = async () => {
+      if (commit || layer === "staged")
+        return gitMedia(cwd, `${commit || ""}:${name}`, mediaType, signal);
+      try {
+        checkMediaSize((await lstat(target)).size);
+        const bytes = await readFile(target, { signal });
+        checkMediaSize(bytes.length);
+        return mediaUrl(bytes, mediaType);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        return "";
+      }
+    };
+    const [old, current] = await Promise.all([
+      gitMedia(cwd, oldRevision, mediaType, signal),
+      currentRead(),
+    ]);
+    return {
+      path: name,
+      old,
+      current,
+      mediaType,
+      binary: true,
+      conflict: changed?.conflict || false,
+    };
+  }
   const oldRead = optional(
     cwd,
     [

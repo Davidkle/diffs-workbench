@@ -403,7 +403,7 @@ test("arrows across commits, files, refs and worktrees preserve chrome on every 
     page.locator('.sidebar .nav-row[title="/repo/tree1"] .current-dot'),
   ).toBeVisible();
   await ready(page);
-  await expect(page.locator(".tab-select")).toHaveText(["donkey"]);
+  await expect(page.locator(".tab-label")).toHaveText(["donkey"]);
   await expect(
     page.locator('.sidebar .nav-row[title="/repo/tree1"]'),
   ).toBeFocused();
@@ -526,7 +526,7 @@ test("worktree arrows in Local Changes preserve the staging panes, form and isol
   await ready(page);
   await expect(page.locator(".history")).toHaveCount(0);
   await expect(page.locator(".staging-section")).toHaveCount(2);
-  await expect(page.locator(".tab-select")).toHaveText(["donkey"]);
+  await expect(page.locator(".tab-label")).toHaveText(["donkey"]);
   await expect(
     page.locator('.sidebar .nav-row[title="/repo/tree1"]'),
   ).toBeFocused();
@@ -751,7 +751,7 @@ test("rapid arrows through newly discovered worktrees honor the last selection",
   await expect(
     page.locator('.sidebar .nav-row[title="/repo/tree3"]'),
   ).toBeFocused();
-  await expect(page.locator(".tab-select")).toHaveText(["donkey"]);
+  await expect(page.locator(".tab-label")).toHaveText(["donkey"]);
   expect((await finishAudit(page)).violations).toEqual([]);
   expect(writes).toEqual(["/projects", "/projects", "/projects"]);
   expect(errors).toEqual([]);

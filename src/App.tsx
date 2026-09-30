@@ -132,6 +132,7 @@ export function App() {
     () => Number(localStorage.getItem("donkey-chat-width")) || 420,
   );
   const [projects, setProjects] = useState<Project[]>([]);
+  const [changeCounts, setChangeCounts] = useState<Record<string, number>>({});
   const [active, setActive] = useState(
     () => localStorage.getItem("donkey-diff-active") || "",
   );
@@ -409,6 +410,10 @@ export function App() {
         activeRef.current === id &&
         refreshVersions.current.get(id) === version
       ) {
+        setChangeCounts((previous) => ({
+          ...previous,
+          [id]: next.files.length,
+        }));
         setProjectError(null);
         setState(next);
         setRevision((n) => n + 1);
@@ -425,6 +430,45 @@ export function App() {
       throw error;
     }
   }, []);
+  const inactiveTabIds = [...new Set(openIds.map(projectForTab))]
+    .filter(
+      (id) => id !== active && projects.some((project) => project.id === id),
+    )
+    .join(",");
+  useEffect(() => {
+    if (!connected || !inactiveTabIds) return;
+    let cancelled = false;
+    const pending = new Set<string>();
+    const updateCounts = () => {
+      if (document.visibilityState !== "visible") return;
+      for (const id of inactiveTabIds.split(",")) {
+        if (pending.has(id)) continue;
+        pending.add(id);
+        void bridge
+          .files(id)
+          .then((changedFiles) => {
+            if (cancelled) return;
+            setChangeCounts((previous) =>
+              previous[id] === changedFiles.length
+                ? previous
+                : { ...previous, [id]: changedFiles.length },
+            );
+          })
+          .catch(() => undefined)
+          .finally(() => pending.delete(id));
+      }
+    };
+    updateCounts();
+    window.addEventListener("focus", updateCounts);
+    document.addEventListener("visibilitychange", updateCounts);
+    const timer = setInterval(updateCounts, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", updateCounts);
+      document.removeEventListener("visibilitychange", updateCounts);
+    };
+  }, [connected, inactiveTabIds]);
   const doSync = useCallback(
     async (id: string) => {
       if (syncBusy.current.has(id)) return;
@@ -708,13 +752,22 @@ export function App() {
             previous.old === next.old &&
             previous.current === next.current &&
             previous.binary === next.binary &&
+            previous.mediaType === next.mediaType &&
             previous.conflict === next.conflict &&
             previous.ours === next.ours &&
             previous.theirs === next.theirs;
           const value = same ? previous : next;
-          if (commit)
+          // Large media data URLs should not accumulate in the commit cache.
+          if (
+            commit &&
+            (!value.mediaType ||
+              value.old.length + value.current.length < 500000)
+          )
             void commitContents.current.load(key, () => Promise.resolve(value));
-          else if (value.old.length + value.current.length < 500000) {
+          else if (
+            !commit &&
+            value.old.length + value.current.length < 500000
+          ) {
             workingContents.current.delete(requestKey);
             workingContents.current.set(requestKey, value);
             if (workingContents.current.size > 24)
@@ -1095,29 +1148,59 @@ export function App() {
             : connected
               ? projects.filter((p) => openIds.includes(p.id))
               : [demo.project]
-          ).map((p) => (
-            <div
-              key={p.id}
-              className={`project-tab ${p.id === activeTab || !connected ? "active" : ""}`}
-            >
-              <button
-                className="tab-select"
-                aria-pressed={p.id === activeTab || !connected}
-                title={p.path}
-                onClick={() => openProject(p.id)}
+          ).map((p) => {
+            const label = projectLabel(p);
+            const suffixLength = label.length > 20 ? 8 : 0;
+            const count = connected
+              ? changeCounts[projectForTab(p.id)]
+              : demo.files.length;
+            return (
+              <div
+                key={p.id}
+                className={`project-tab ${p.id === activeTab || !connected ? "active" : ""}`}
               >
-                <Folder size={13} />
-                <span className="tab-label">{projectLabel(p)}</span>
-              </button>
-              <button
-                className="tab-close"
-                aria-label={`Close ${p.name} tab`}
-                onClick={() => closeProjectTab(p.id)}
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
+                <button
+                  className="tab-select"
+                  aria-pressed={p.id === activeTab || !connected}
+                  aria-label={label}
+                  aria-describedby={
+                    count !== undefined ? `tab-count-${p.id}` : undefined
+                  }
+                  title={p.path}
+                  onClick={() => openProject(p.id)}
+                >
+                  <Folder size={13} />
+                  <span className="tab-label">
+                    <span className="tab-label-start">
+                      {suffixLength ? label.slice(0, -suffixLength) : label}
+                    </span>
+                    {suffixLength > 0 && (
+                      <span className="tab-label-end">
+                        {label.slice(-suffixLength)}
+                      </span>
+                    )}
+                  </span>
+                  {count !== undefined && (
+                    <span
+                      id={`tab-count-${p.id}`}
+                      className="tab-count"
+                      aria-label={`${count} changed file${count === 1 ? "" : "s"}`}
+                      title={`${count} changed file${count === 1 ? "" : "s"}`}
+                    >
+                      ({count})
+                    </span>
+                  )}
+                </button>
+                <button
+                  className="tab-close"
+                  aria-label={`Close ${p.name} tab`}
+                  onClick={() => closeProjectTab(p.id)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            );
+          })}
           {!noProject && (
             <Dropdown
               trigger={

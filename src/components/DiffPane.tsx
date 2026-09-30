@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SvgPreview } from "@/components/SvgPreview";
+import { MediaPreview } from "@/components/MediaPreview";
 import { usePersistentBoolean } from "@/use-persistent-boolean";
 import { Image, ImageOff } from "lucide-react";
 import type { FileContent } from "@/types";
@@ -111,6 +112,7 @@ export function DiffPane({
           <span className="separator" />
           <Button
             title="Wrap lines"
+            disabled={!!content?.binary}
             aria-label="Wrap lines"
             variant="ghost"
             size="icon"
@@ -122,6 +124,7 @@ export function DiffPane({
           </Button>
           <Button
             title="Full file"
+            disabled={!!content?.binary}
             aria-label="Full file"
             variant="ghost"
             size="icon"
@@ -145,6 +148,7 @@ export function DiffPane({
           </Button>
           <Button
             title="Toggle split diff"
+            disabled={!!content?.binary}
             aria-label="Toggle split diff"
             variant="ghost"
             size="icon"
@@ -174,6 +178,8 @@ export function DiffPane({
           <div className="empty">
             <p>Select a file to view changes.</p>
           </div>
+        ) : content.mediaType ? (
+          <MediaPreview content={content} fileMode={fileMode} />
         ) : content.binary ? (
           <div className="empty">
             <FileCode2 size={32} />

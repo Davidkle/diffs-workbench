@@ -221,7 +221,8 @@ test("worktree and ref switches preserve chrome, scroll and cached diffs while r
       if (url.searchParams.get("ref") === "refs/tags/v0") await refRead;
       data = [commits[index]];
     } else if (url.pathname.endsWith("/files")) {
-      fileReads.push(url.href);
+      // Background tab counts read working files; only track diff-view reads.
+      if (url.searchParams.has("commit")) fileReads.push(url.href);
       data = changed(index);
     } else if (url.pathname.endsWith("/file")) {
       fileReads.push(url.href);
@@ -365,11 +366,21 @@ test("worktrees stay inside their repository tab and survive switching tabs and 
   page,
 }) => {
   const root = { id: "1111111111111111", name: "donkey", path: "/repo/donkey" };
-  const other = { id: "2222222222222222", name: "other", path: "/repo/other" };
+  const otherName = "Some long repository Title";
+  const other = {
+    id: "2222222222222222",
+    name: otherName,
+    path: "/repo/other",
+  };
   const linked = {
     id: "3333333333333333",
     name: "albany",
     path: "/repo/albany",
+  };
+  const counts: Record<string, number> = {
+    [root.id]: 1,
+    [other.id]: 2,
+    [linked.id]: 3,
   };
   await page.addInitScript(() => {
     sessionStorage.setItem("donkey-diff-token", "test");
@@ -384,11 +395,20 @@ test("worktrees stay inside their repository tab and survive switching tabs and 
     const pathname = new URL(route.request().url()).pathname;
     const project =
       [root, other, linked].find((p) => pathname.includes(p.id)) || root;
+    const files = Array.from({ length: counts[project.id] }, (_, index) => ({
+      path: `file-${index}.txt`,
+      status: "M",
+      staged: index === 0,
+      unstaged: true,
+      conflict: false,
+      additions: 1,
+      deletions: 1,
+    }));
     const snapshot = {
       project,
       branch: project.name,
       commits: [],
-      files: [],
+      files,
       branches: [],
       worktrees: (project === other ? [other] : [root, linked]).map((p) => ({
         path: p.path,
@@ -406,7 +426,17 @@ test("worktrees stay inside their repository tab and survive switching tabs and 
           ? [root, other, linked]
           : pathname.endsWith("/history")
             ? []
-            : snapshot,
+            : pathname.endsWith("/files")
+              ? files
+              : pathname.endsWith("/file")
+                ? {
+                    path: "file-0.txt",
+                    old: "before\n",
+                    current: "after\n",
+                    binary: false,
+                    conflict: false,
+                  }
+                : snapshot,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Authorization, Content-Type",
@@ -415,7 +445,21 @@ test("worktrees stay inside their repository tab and survive switching tabs and 
   });
   await page.goto(origin);
   const tabs = page.locator(".tab-select");
-  await expect(tabs).toHaveText(["donkey", "other"]);
+  await expect(tabs.locator(".tab-label")).toHaveText(["donkey", otherName]);
+  const badges = tabs.locator(".tab-count");
+  await expect(badges).toHaveText(["(1)", "(2)"]);
+  await expect(tabs.nth(1)).toHaveAccessibleName(otherName);
+  const titleStart = tabs.nth(1).locator(".tab-label-start");
+  expect(
+    await titleStart.evaluate((node) => node.scrollWidth > node.clientWidth),
+  ).toBe(true);
+  await expect(tabs.nth(1).locator(".tab-label-end")).toHaveText("ry Title");
+  const tabBounds = await tabs.nth(1).boundingBox();
+  const countBounds = await badges.nth(1).boundingBox();
+  expect(countBounds!.x + countBounds!.width).toBeLessThanOrEqual(
+    tabBounds!.x + tabBounds!.width,
+  );
+  await expect(tabs.first()).toHaveAccessibleDescription("1 changed file");
   const originalTab = await tabs.first().elementHandle();
   await page
     .locator(".sidebar")
@@ -425,19 +469,35 @@ test("worktrees stay inside their repository tab and survive switching tabs and 
   await expect(
     page.locator('.sidebar .nav-row[title="/repo/albany"] .current-dot'),
   ).toBeVisible();
-  await expect(tabs).toHaveText(["donkey", "other"]);
+  await expect(tabs.locator(".tab-label")).toHaveText(["donkey", otherName]);
   await expect(tabs.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(badges).toHaveText(["(3)", "(2)"]);
   expect(await originalTab!.evaluate((node) => node.isConnected)).toBe(true);
+  const backgroundRefresh = page.waitForResponse((response) =>
+    response.url().endsWith(`/projects/${linked.id}/files`),
+  );
   await tabs.nth(1).click();
-  await expect(page.locator(".project-heading")).toContainText("other");
+  await expect(page.locator(".project-heading")).toContainText(otherName);
+  await backgroundRefresh;
+  await expect(page.locator(".primary-nav .count")).toHaveText("2");
+  await expect(page.locator(".diff-pane")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  counts[linked.id] = 0;
+  counts[other.id] = 5;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(badges).toHaveText(["(0)", "(5)"]);
+  await expect(page.locator(".primary-nav .count")).toHaveText("5");
   await tabs.first().click();
   await expect(page.locator(".project-heading")).toContainText("donkey");
   await expect(
     page.locator('.sidebar .nav-row[title="/repo/albany"] .current-dot'),
   ).toBeVisible();
   await page.reload();
-  await expect(tabs).toHaveText(["donkey", "other"]);
+  await expect(tabs.locator(".tab-label")).toHaveText(["donkey", otherName]);
   await expect(tabs.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(badges).toHaveText(["(0)", "(5)"]);
   await expect(page.locator(".project-heading")).toContainText("donkey");
   await expect(
     page.locator('.sidebar .nav-row[title="/repo/albany"] .current-dot'),
@@ -445,8 +505,8 @@ test("worktrees stay inside their repository tab and survive switching tabs and 
   await page
     .getByRole("button", { name: "Close donkey tab", exact: true })
     .click();
-  await expect(tabs).toHaveText(["other"]);
-  await expect(page.locator(".project-heading")).toContainText("other");
+  await expect(tabs.locator(".tab-label")).toHaveText([otherName]);
+  await expect(page.locator(".project-heading")).toContainText(otherName);
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
