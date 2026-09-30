@@ -676,3 +676,95 @@ test("commit changes and rapid file cycling keep toolbar nodes, styles and geome
   expect(await details!.evaluate((node) => node.isConnected)).toBe(true);
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
+
+test("Git toolbar actions replace their icons without changing button size", async ({
+  page,
+}) => {
+  const project = {
+    id: "1111111111111111",
+    name: "donkey",
+    path: "/repo/donkey",
+  };
+  const snapshot = {
+    project,
+    branch: "main",
+    commits: [],
+    files: [],
+    branches: [],
+    worktrees: [],
+    tags: [],
+    remotes: [],
+    stashes: [],
+    ahead: 2,
+    behind: 3,
+  };
+  let finishAction: () => void = () => {};
+  let requestedAction = "";
+  await page.addInitScript(() => {
+    sessionStorage.setItem("donkey-diff-token", "test");
+    localStorage.setItem("donkey-diff-auto-sync", "false");
+  });
+  await page.route("http://127.0.0.1:43127/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let data: unknown = snapshot;
+    let status = 200;
+    if (path === "/projects") data = [project];
+    else if (path.endsWith("/files") || path.endsWith("/history")) data = [];
+    else if (path.endsWith("/action")) {
+      requestedAction = route.request().postDataJSON().action;
+      await new Promise<void>((resolve) => {
+        finishAction = resolve;
+      });
+      // Failure must restore the original icon too.
+      status = requestedAction === "push" ? 500 : 200;
+      data = status === 500 ? { error: "Push rejected" } : { message: "Done" };
+    }
+    await route.fulfill({
+      status,
+      json: data,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+      },
+    });
+  });
+  await page.goto(origin);
+  await expect(page.locator(".project-heading")).toHaveText("donkey");
+  const actions = page.locator(".toolbar-actions > .tool[aria-busy]");
+  const bounds = () =>
+    actions.evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const { x, y, width, height } = button.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
+  for (const [label, action] of [
+    ["Fetch", "fetch"],
+    ["Pull", "pull"],
+    ["Push", "push"],
+    ["Stash", "stash-create"],
+  ]) {
+    const button = page.getByTitle(label, { exact: true });
+    const initialBounds = await bounds();
+    const originalIcon = await button.locator("svg").getAttribute("class");
+    await button.click();
+    if (action === "stash-create") {
+      await page
+        .getByLabel("Message", { exact: true })
+        .fill("Work in progress");
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+    }
+    await expect(button).toHaveAttribute("aria-busy", "true");
+    await expect(button.locator(".tool-icon > .animate-spin")).toHaveCount(1);
+    await expect(button.locator("small")).toHaveText(label);
+    expect(await bounds()).toEqual(initialBounds);
+    await expect.poll(() => requestedAction).toBe(action);
+    for (const other of await actions.all()) await expect(other).toBeDisabled();
+    expect(await actions.locator(".animate-spin").count()).toBe(1);
+    finishAction();
+    await expect(button).toHaveAttribute("aria-busy", "false");
+    await expect(button).toBeEnabled();
+    await expect(button.locator("svg")).toHaveAttribute("class", originalIcon!);
+    expect(await bounds()).toEqual(initialBounds);
+  }
+});

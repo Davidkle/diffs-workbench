@@ -407,6 +407,9 @@ button svg {
 .tool:disabled {
   opacity: 0.35;
 }
+.tool[aria-busy="true"] {
+  opacity: 1;
+}
 .tool .tool-icon {
   align-items: center;
   flex-shrink: 0;

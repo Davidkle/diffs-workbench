@@ -1757,12 +1757,14 @@ export function App() {
                   <Tool
                     icon={<RefreshCw />}
                     label="Fetch"
+                    loading={busy === "fetch"}
                     onClick={() => run("fetch")}
                     disabled={!!busy}
                   />
                   <Tool
                     icon={<ArrowDown />}
                     label="Pull"
+                    loading={busy === "pull"}
                     badge={state.behind}
                     onClick={() => run("pull")}
                     disabled={!!busy}
@@ -1770,6 +1772,7 @@ export function App() {
                   <Tool
                     icon={<ArrowUp />}
                     label="Push"
+                    loading={busy === "push"}
                     badge={state.ahead}
                     onClick={() => run("push")}
                     disabled={!!busy}
@@ -1777,6 +1780,7 @@ export function App() {
                   <Tool
                     icon={<Archive />}
                     label="Stash"
+                    loading={busy === "stash-create"}
                     onClick={() =>
                       actionModal(
                         "Stash local changes",
@@ -2472,21 +2476,26 @@ function Tool({
   onClick,
   badge,
   disabled,
+  loading = false,
 }: {
   icon: ReactNode;
   label: string;
   onClick: () => void;
   badge?: number;
   disabled?: boolean;
+  loading?: boolean;
 }) {
   return (
     <button
       className="tool"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || loading}
+      aria-busy={loading}
       title={label}
     >
-      <span className="tool-icon">{icon}</span>
+      <span className="tool-icon" aria-hidden="true">
+        {loading ? <Loader2 className="animate-spin" /> : icon}
+      </span>
       <small>{label}</small>
       {!!badge && <i className="tool-badge">{badge}</i>}
     </button>
