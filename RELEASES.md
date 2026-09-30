@@ -2,7 +2,7 @@
 
 ## Daily builds
 
-The Daily Donkey Diff build workflow runs at 18:00 UTC (03:00 Asia/Seoul) and can be dispatched manually from main. The workflow must be committed to main before GitHub can schedule it. Local source changes have not been committed or published automatically.
+The Daily Donkey Diff build workflow runs at 18:00 UTC (03:00 Asia/Seoul) and can be dispatched manually from main.
 
 Each run checks types, lints, runs tests, builds an Apple Silicon app, Developer ID signs it, submits it to Apple for notarization, staples and validates the ticket, then signs its Sparkle update archive. Failed signing or notarization stops publication. The local package:mac command creates an unsigned production-named build for testing; use scripts/release-config.cjs for signed distribution. The separate package:mac:dev command creates the isolated red-logo dev app.
 
@@ -27,7 +27,7 @@ Configure these on DonkeyCut/donkey-diff. Never commit private keys or certifica
 | DONKEY_DIFF_POSTHOG_KEY | PostHog public project ingestion token, never a personal API key |
 | DONKEY_DIFF_POSTHOG_HOST | PostHog ingestion host; local setup uses https://e.donkeycut.com |
 
-The existing Developer ID certificate is present in Xcode's David Le developer team. Existing Donkey signing secret names are visible in its repository, but GitHub does not reveal their saved values. No new Apple or Sparkle credentials have been created for this app. A Donkey Diff Sparkle key must be approved and provisioned before updates can be signed. Keep the keypair stable after distribution.
+Apple signing and notarization credentials are configured in this repository's Actions secrets. Donkey Diff has its own Sparkle signing keypair; its public verification key is also recorded in desktop/sparkle/config.json. Keep that keypair stable after distribution.
 
 CI imports credentials into an ephemeral keychain and temporary files, removes them after the run, and never includes them in artifacts. Only the public PostHog ingestion token/host and public Sparkle verification key enter the shipped app.
 
@@ -39,6 +39,8 @@ Explicit native events are donkey_diff_app_opened, donkey_diff_project_added, do
 
 Users can disable collection from Privacy > Send Anonymous Usage Statistics. The preference and random identifier persist in the app's user-data directory. The existing Donkey Cut PostHog project is used because its current plan does not allow creating another project; the donkey_diff_ event prefix separates this app.
 
-## Verification still required before first publication
+## Release verification
 
-Run npm test, npm run lint, npm run build, and a signed release build with the configured credentials. Confirm Apple's accepted notarization, staple validation, GitHub release downloads, and one end-to-end Sparkle update between two versions. Verify one app/project event in PostHog and that the Privacy switch stops further events. Source and configuration preparation alone do not establish that the release pipeline is live.
+The first signed release, v0.1.17, was published on September 30, 2026 after type checks, lint, tests, signing, Apple notarization, and staple validation passed. The published DMG and ZIP checksums, app identity, Gatekeeper acceptance, stapled ticket, and Sparkle update signature were also verified after download.
+
+An end-to-end Sparkle installation between two signed versions and live PostHog event delivery remain separate checks. Analytics requires the optional PostHog secrets above.
