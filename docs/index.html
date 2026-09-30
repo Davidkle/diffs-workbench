@@ -20,36 +20,29 @@
       >
       <nav aria-label="Main navigation">
         <a href="#features">Features</a>
-        <a href="https://github.com/DonkeyCut/donkey-diff"
-          >GitHub <span aria-hidden="true">↗</span></a
-        >
+        <a href="https://github.com/DonkeyCut/donkey-diff">GitHub</a>
         <a
           class="button button-small"
           href="https://github.com/DonkeyCut/donkey-diff/releases/latest"
-          >Download for Mac <span aria-hidden="true">↓</span></a
+          >Download for Mac</a
         >
       </nav>
     </header>
     <main id="main">
       <section class="hero wrap" aria-labelledby="hero-title">
         <div>
-          <p class="eyebrow">Donkey Diff</p>
-          <h1 id="hero-title">Open source Git client<br />for Mac.</h1>
+          <h1 id="hero-title">Open source Git client for Mac.</h1>
           <p class="intro">
-            Review changes, manage branches, and commit your work. Donkey Diff
-            brings your local Git projects into one app.
+            Review changes, manage branches, and commit your work.
           </p>
           <div class="actions">
             <a
               class="button"
               href="https://github.com/DonkeyCut/donkey-diff/releases/latest"
-              >Download for Mac <span aria-hidden="true">↓</span></a
+              >Download for Mac</a
             >
-            <a class="text-link" href="#demo"
-              >Watch the demo <span aria-hidden="true">↘</span></a
-            >
+            <a class="text-link" href="#demo">Watch the demo</a>
           </div>
-          <p class="fine-print">Free · Apple Silicon · MIT license</p>
         </div>
         <img
           class="hero-icon"
@@ -73,12 +66,6 @@
           <source src="./demo.mp4" type="video/mp4" />
           <a href="./demo.mp4">Watch the demo</a>
         </video>
-        <p class="media-caption">
-          Your files, changes, and project chat in one window.
-          <a href="https://diffs-workbench.vercel.app"
-            >Try the browser preview <span aria-hidden="true">↗</span></a
-          >
-        </p>
       </section>
 
       <div id="features" class="wrap">
@@ -91,19 +78,17 @@
               you’re looking for.
             </p>
           </div>
-          <figure class="visual screenshot-visual">
-            <div class="review-crop">
-              <img
-                src="./poster.jpg"
-                alt="Donkey Diff showing changed files beside a syntax-highlighted code diff"
-                width="1920"
-                height="1204"
+          <figure class="visual">
+            <a
+              href="./screenshots/diff.png"
+              aria-label="View full diff screenshot"
+              ><img
+                src="./screenshots/diff.png"
+                alt="Syntax-highlighted code changes in Donkey Diff"
+                width="647"
+                height="466"
                 loading="lazy"
-              />
-            </div>
-            <figcaption>
-              Diff rendering by <a href="https://diffs.com">Pierre</a>.
-            </figcaption>
+            /></a>
           </figure>
         </section>
 
@@ -116,36 +101,17 @@
               your working directory.
             </p>
           </div>
-          <figure
-            class="visual illustration"
-            aria-label="Example of staged and unstaged files"
-          >
-            <div class="mini-window">
-              <div class="window-heading">
-                <span class="window-dot"></span>Local changes
-                <span class="muted push-right">3 files</span>
-              </div>
-              <div class="group-label">Unstaged <span>1</span></div>
-              <div class="file-row">
-                <span class="file-status">M</span><span>src/styles.css</span
-                ><span class="muted push-right">+12 −4</span>
-              </div>
-              <div class="group-label">Staged <span>2</span></div>
-              <div class="file-row">
-                <span class="file-status">M</span><span>src/App.tsx</span
-                ><span class="added push-right">+8 −2</span>
-              </div>
-              <div class="file-row">
-                <span class="file-status added">A</span
-                ><span>src/components/Search.tsx</span
-                ><span class="added push-right">+32</span>
-              </div>
-              <div class="commit-message">Add file search</div>
-              <div class="commit-summary">
-                <span class="status-dot"></span>2 files ready to commit
-              </div>
-            </div>
-            <figcaption>Keep separate changes in separate commits.</figcaption>
+          <figure class="visual">
+            <a
+              href="./screenshots/staging.png"
+              aria-label="View full staging screenshot"
+              ><img
+                src="./screenshots/staging.png"
+                alt="Real staged and unstaged files with the commit form"
+                width="918"
+                height="638"
+                loading="lazy"
+            /></a>
           </figure>
         </section>
 
@@ -158,31 +124,17 @@
               folder.
             </p>
           </div>
-          <figure class="visual illustration">
-            <div class="mini-window branch-window">
-              <div class="project-tabs">
-                <span class="active-tab">donkey-diff</span><span>website</span>
-              </div>
-              <div class="group-label">Worktrees</div>
-              <div class="tree-row">
-                <span class="tree-symbol">⌁</span>
-                <div><strong>donkey-diff</strong><small>main</small></div>
-                <span class="current-label push-right">Current</span>
-              </div>
-              <div class="tree-row">
-                <span class="tree-symbol">⌁</span>
-                <div>
-                  <strong>file-search</strong><small>feat/file-search</small>
-                </div>
-              </div>
-              <div class="tree-row">
-                <span class="tree-symbol">⌁</span>
-                <div>
-                  <strong>sidebar-fix</strong><small>fix/sidebar</small>
-                </div>
-              </div>
-            </div>
-            <figcaption>A separate folder for each worktree.</figcaption>
+          <figure class="visual">
+            <a
+              href="./screenshots/branches.png"
+              aria-label="View full branches screenshot"
+              ><img
+                src="./screenshots/branches.png"
+                alt="Donkey Diff repository sidebar with branches and worktrees"
+                width="361"
+                height="324"
+                loading="lazy"
+            /></a>
           </figure>
         </section>
 
@@ -195,35 +147,17 @@
               between them.
             </p>
           </div>
-          <figure class="visual illustration">
-            <div class="mini-window history-window">
-              <div class="window-heading">
-                <span class="window-dot"></span>All commits
-              </div>
-              <div class="history-row selected">
-                <span class="history-dot"></span>
-                <div>
-                  <strong>Add file search</strong><small>a4e9f21 · main</small>
-                </div>
-              </div>
-              <div class="history-row">
-                <span class="history-dot"></span>
-                <div>
-                  <strong>Remember panel sizes</strong><small>b8c320a</small>
-                </div>
-              </div>
-              <div class="history-row selected">
-                <span class="history-dot"></span>
-                <div>
-                  <strong>Add split diff view</strong><small>c31d9f4</small>
-                </div>
-              </div>
-              <div class="comparison">
-                <span>c31d9f4</span><span aria-hidden="true">↔</span
-                ><span>a4e9f21</span>
-              </div>
-            </div>
-            <figcaption>Select two commits to compare.</figcaption>
+          <figure class="visual">
+            <a
+              href="./screenshots/history.png"
+              aria-label="View full history screenshot"
+              ><img
+                src="./screenshots/history.png"
+                alt="Donkey Diff commit graph and repository history"
+                width="918"
+                height="401"
+                loading="lazy"
+            /></a>
           </figure>
         </section>
 
@@ -236,29 +170,17 @@
               browsing files.
             </p>
           </div>
-          <figure class="visual illustration">
-            <div class="mini-window asset-window">
-              <div class="window-heading">
-                <span class="window-dot"></span>favicon.svg<span
-                  class="muted push-right"
-                  >Preview</span
-                >
-              </div>
-              <div class="asset-preview">
-                <img
-                  src="./favicon.svg"
-                  alt="Donkey Diff SVG logo rendered as an inline asset preview"
-                  width="120"
-                  height="120"
-                  loading="lazy"
-                />
-              </div>
-              <pre class="asset-source"><code>&lt;svg viewBox="0 0 32 32"&gt;
-  &lt;rect width="32" height="32" /&gt;
-  &lt;!-- logo paths --&gt;
-&lt;/svg&gt;</code></pre>
-            </div>
-            <figcaption>Preview SVGs without leaving the file.</figcaption>
+          <figure class="visual">
+            <a
+              href="./screenshots/assets.png"
+              aria-label="View full assets screenshot"
+              ><img
+                src="./screenshots/assets.png"
+                alt="An SVG file rendered inline in Donkey Diff"
+                width="647"
+                height="497"
+                loading="lazy"
+            /></a>
           </figure>
         </section>
 
@@ -267,32 +189,26 @@
             <h2 id="chat-title">Codex and Claude</h2>
             <p>
               Ask an agent to explain code, make an edit, or review your
-              changes. Follow its commands and file activity alongside your
-              diff.
-            </p>
-            <p class="note">
-              Requires a signed-in Codex or Claude CLI. Chat uses that
-              provider’s service and your existing account.
+              changes.
             </p>
           </div>
-          <figure class="visual screenshot-visual">
-            <div class="chat-crop">
-              <img
-                src="./poster.jpg"
-                alt="Project chat showing an agent’s review, command activity, and message composer"
-                width="1920"
-                height="1204"
+          <figure class="visual">
+            <a
+              href="./screenshots/chat.png"
+              aria-label="View full chat screenshot"
+              ><img
+                src="./screenshots/chat.png"
+                alt="An existing project conversation in Donkey Diff"
+                width="643"
+                height="638"
                 loading="lazy"
-              />
-            </div>
-            <figcaption>Review the agent’s work next to your code.</figcaption>
+            /></a>
           </figure>
         </section>
       </div>
 
       <section class="everyday" aria-labelledby="everyday-title">
         <div class="wrap">
-          <p class="eyebrow">Included in Donkey Diff</p>
           <h2 id="everyday-title">Feature overview</h2>
           <div class="feature-grid">
             <article>
@@ -339,33 +255,13 @@
           </div>
         </div>
       </section>
-
-      <section class="download wrap" aria-labelledby="download-title">
-        <img src="./icon.png" alt="" width="72" height="72" loading="lazy" />
-        <h2 id="download-title">Download Donkey Diff</h2>
-        <p>Free and open source. Add a local repository to get started.</p>
-        <div class="actions">
-          <a
-            class="button"
-            href="https://github.com/DonkeyCut/donkey-diff/releases/latest"
-            >Download for Mac <span aria-hidden="true">↓</span></a
-          ><a
-            class="text-link"
-            href="https://github.com/DonkeyCut/donkey-diff#browser-setup-advanced"
-            >Browser setup <span aria-hidden="true">↗</span></a
-          >
-        </div>
-        <p class="fine-print">Apple Silicon · Git required</p>
-      </section>
     </main>
     <footer class="wrap">
       <a class="brand" href="./"
         ><img src="./icon.png" alt="" width="28" height="28" />Donkey Diff</a
       >
       <p>Open source under the MIT license.</p>
-      <a href="https://github.com/DonkeyCut/donkey-diff"
-        >View source <span aria-hidden="true">↗</span></a
-      >
+      <a href="https://github.com/DonkeyCut/donkey-diff">View source</a>
     </footer>
   </body>
 </html>
