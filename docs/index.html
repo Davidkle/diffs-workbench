@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Donkey Diff — a local-first Git workbench."
+    />
+    <meta name="theme-color" content="#171717" />
+    <title>Donkey Diff</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #171717;
+        color: #f4f4f4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+
+      main {
+        width: min(1120px, 100% - 40px);
+        margin: 0 auto;
+        padding: 64px 0 40px;
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(36px, 6vw, 56px);
+        font-weight: 650;
+        letter-spacing: -0.045em;
+      }
+
+      p {
+        margin: 12px 0 32px;
+        color: #b0b0b0;
+        font-size: clamp(16px, 2.5vw, 20px);
+        line-height: 1.5;
+      }
+
+      video {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1920 / 1204;
+        background: #242424;
+        border: 1px solid #383838;
+        border-radius: 12px;
+      }
+
+      a {
+        display: inline-block;
+        margin-top: 28px;
+        padding: 8px;
+        color: inherit;
+        font-size: 15px;
+        text-underline-offset: 4px;
+      }
+
+      a:hover {
+        color: #b0b0b0;
+      }
+      a:focus-visible {
+        outline: 2px solid #89b4fa;
+        outline-offset: 4px;
+      }
+
+      @media (max-width: 600px) {
+        main {
+          width: calc(100% - 24px);
+          padding-top: 40px;
+        }
+        video {
+          border-radius: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Donkey Diff</h1>
+      <p>A local-first Git workbench.</p>
+      <video
+        controls
+        playsinline
+        preload="metadata"
+        poster="./poster.jpg"
+        aria-label="Donkey Diff demo"
+        width="1920"
+        height="1204"
+      >
+        <source src="./demo.mp4" type="video/mp4" />
+        <a href="./demo.mp4">Watch the demo</a>
+      </video>
+      <a href="https://github.com/DonkeyCut/donkey-diff">GitHub ↗</a>
+    </main>
+  </body>
+</html>
