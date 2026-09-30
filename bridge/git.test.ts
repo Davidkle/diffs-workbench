@@ -243,3 +243,44 @@ test("deleted project directories report recovery instructions and do not break 
     await rm(healthy, { recursive: true, force: true });
   }
 });
+
+test("cancellable file reads preserve staged renames and unstaged index comparisons", async () => {
+  const dir = await fixture();
+  try {
+    await git(dir, ["mv", "hello.ts", "renamed.ts"]);
+    const staged = await fileContent(
+      dir,
+      "renamed.ts",
+      undefined,
+      undefined,
+      "staged",
+    );
+    assert.equal(staged.old, staged.current);
+    assert.match(staged.old, /world/);
+    await writeFile(path.join(dir, "renamed.ts"), "changed\n");
+    const unstaged = await fileContent(
+      dir,
+      "renamed.ts",
+      undefined,
+      undefined,
+      "unstaged",
+    );
+    assert.equal(unstaged.old, staged.current);
+    assert.equal(unstaged.current, "changed\n");
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(
+      fileContent(
+        dir,
+        "renamed.ts",
+        undefined,
+        undefined,
+        "unstaged",
+        controller.signal,
+      ),
+      /abort/i,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

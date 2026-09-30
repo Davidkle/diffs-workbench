@@ -229,6 +229,10 @@ app.get("/projects/:id/file", async (req, res) => {
       layer: z.enum(["staged", "unstaged"]).optional(),
     })
     .parse(req.query);
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
   res.json(
     await fileContent(
       projectFor(req.params.id).path,
@@ -236,6 +240,7 @@ app.get("/projects/:id/file", async (req, res) => {
       commit,
       base,
       layer,
+      controller.signal,
     ),
   );
 });

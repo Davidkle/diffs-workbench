@@ -583,12 +583,12 @@ test("commit changes and rapid file cycling keep toolbar nodes, styles and geome
   await fileRequested;
   await expect(toolbar).toContainText("c.txt");
   expect(await appearance()).toEqual(initial);
-  await page.keyboard.press("ArrowUp");
-  const lateFile = page.waitForResponse((response) =>
-    response.url().includes("path=d.txt"),
+  const cancelledFile = page.waitForEvent("requestfailed", (request) =>
+    request.url().includes("path=d.txt"),
   );
+  await page.keyboard.press("ArrowUp");
+  await cancelledFile;
   releaseFile();
-  await lateFile;
   await expect(page.locator(".diff-pane")).toHaveAttribute(
     "aria-busy",
     "false",

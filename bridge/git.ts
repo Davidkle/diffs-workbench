@@ -27,13 +27,14 @@ export async function assertProjectDirectory(cwd: string) {
     );
   }
 }
-export async function git(cwd: string, args: string[]) {
+export async function git(cwd: string, args: string[], signal?: AbortSignal) {
   try {
     return (
       await exec("git", ["-c", "core.quotepath=false", ...args], {
         cwd,
         maxBuffer: 20 * 1024 * 1024,
         timeout: 60000,
+        signal,
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
       })
     ).stdout;
@@ -49,10 +50,16 @@ export async function git(cwd: string, args: string[]) {
     throw new Error(e.stderr?.trim() || e.message, { cause: error });
   }
 }
-async function optional(cwd: string, args: string[], fallback = "") {
+async function optional(
+  cwd: string,
+  args: string[],
+  fallback = "",
+  signal?: AbortSignal,
+) {
   try {
-    return await git(cwd, args);
-  } catch {
+    return await git(cwd, args, signal);
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return fallback;
   }
 }
@@ -356,6 +363,7 @@ export async function fileContent(
   commit?: string,
   base?: string,
   layer?: "staged" | "unstaged",
+  signal?: AbortSignal,
 ): Promise<FileContent> {
   const target = await safeFile(cwd, name);
   if (base && !commit) throw new Error("A target commit is required");
@@ -363,34 +371,51 @@ export async function fileContent(
   const files = commit
     ? []
     : parseStatus(
-        await git(cwd, [
-          "status",
-          "--porcelain=v1",
-          "-z",
-          "--untracked-files=all",
-        ]),
+        await git(
+          cwd,
+          [
+            "--literal-pathspecs",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            ...(layer === "unstaged" ? ["--", name] : []),
+          ],
+          signal,
+        ),
       );
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
   const oldName = layer === "unstaged" ? name : changed?.oldPath || name;
-  const old = await optional(cwd, [
-    "show",
-    `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
-  ]);
-  let current = "";
-  if (commit) current = await optional(cwd, ["show", `${commit}:${name}`]);
-  else if (layer === "staged")
-    current = await optional(cwd, ["show", `:${name}`]);
-  else {
-    try {
-      const stat = await lstat(target);
-      if (stat.size > 5 * 1024 * 1024)
-        throw new Error("File exceeds the 5 MB viewing limit");
-      current = await readFile(target, "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  const oldRead = optional(
+    cwd,
+    [
+      "show",
+      `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
+    ],
+    "",
+    signal,
+  );
+  // Read both sides concurrently; every process belongs to this cancellable request.
+  const currentRead = async () => {
+    let current = "";
+    if (commit)
+      current = await optional(cwd, ["show", `${commit}:${name}`], "", signal);
+    else if (layer === "staged")
+      current = await optional(cwd, ["show", `:${name}`], "", signal);
+    else {
+      try {
+        const stat = await lstat(target);
+        if (stat.size > 5 * 1024 * 1024)
+          throw new Error("File exceeds the 5 MB viewing limit");
+        current = await readFile(target, { encoding: "utf8", signal });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
     }
-  }
+    return current;
+  };
+  const [old, current] = await Promise.all([oldRead, currentRead()]);
   const conflict = changed?.conflict || false;
   return {
     path: name,
@@ -400,8 +425,8 @@ export async function fileContent(
     conflict,
     ...(conflict
       ? {
-          ours: await optional(cwd, ["show", `:2:${name}`]),
-          theirs: await optional(cwd, ["show", `:3:${name}`]),
+          ours: await optional(cwd, ["show", `:2:${name}`], "", signal),
+          theirs: await optional(cwd, ["show", `:3:${name}`], "", signal),
         }
       : {}),
   };

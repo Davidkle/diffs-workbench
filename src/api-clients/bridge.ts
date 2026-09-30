@@ -27,6 +27,7 @@ async function request<T>(
   route: string,
   method = "GET",
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   if (window.donkeyDiffDesktop) {
     const result = await window.donkeyDiffDesktop.request<T>(
@@ -46,11 +47,15 @@ async function request<T>(
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(70000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(70000)])
+        : AbortSignal.timeout(70000),
     });
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     throw new Error(
       "Local bridge is offline. Start it on this computer, then reconnect.",
+      { cause: error },
     );
   }
   const json = await response.json();
@@ -79,9 +84,13 @@ export const bridge = {
     commit?: string,
     base?: string,
     layer?: "staged" | "unstaged",
+    signal?: AbortSignal,
   ) =>
     request<FileContent>(
       `/projects/${id}/file?path=${encodeURIComponent(path)}${commit ? `&commit=${commit}` : ""}${base ? `&base=${base}` : ""}${layer ? `&layer=${layer}` : ""}`,
+      "GET",
+      undefined,
+      signal,
     ),
   action: (id: string, action: Action, input: Record<string, string> = {}) =>
     request<{ message: string }>(`/projects/${id}/action`, "POST", {

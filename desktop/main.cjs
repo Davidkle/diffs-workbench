@@ -18,6 +18,7 @@ let bridgeProcess;
 let window;
 let token;
 let activeMutations = 0;
+let fileRead;
 const { createUpdater } = require("./updater.cjs");
 const updater = createUpdater({
   currentVersion: app.getVersion(),
@@ -117,6 +118,13 @@ else {
               "An app update is installing. Try again after Donkey Diff restarts.",
           };
         }
+        const readingFile =
+          method === "GET" && /^\/projects\/[a-f0-9]{16}\/file\?/.test(route);
+        const controller = readingFile ? new AbortController() : undefined;
+        if (controller) {
+          fileRead?.abort();
+          fileRead = controller;
+        }
         if (method !== "GET") activeMutations++;
         try {
           const response = await fetch(`http://127.0.0.1:${port}${route}`, {
@@ -126,10 +134,16 @@ else {
               "Content-Type": "application/json",
             },
             body: body ? JSON.stringify(body) : undefined,
-            signal: AbortSignal.timeout(70000),
+            signal: controller
+              ? AbortSignal.any([controller.signal, AbortSignal.timeout(70000)])
+              : AbortSignal.timeout(70000),
           });
           const result = await response.json();
-          if (response.ok && method === "POST" && route.split("?")[0] === "/projects")
+          if (
+            response.ok &&
+            method === "POST" &&
+            route.split("?")[0] === "/projects"
+          )
             void telemetry.capture("project_added");
           if (response.ok && method === "DELETE")
             void telemetry.capture("project_removed");
@@ -143,6 +157,7 @@ else {
               "The Git service is unavailable. Quit and reopen Donkey Diff, then try again.",
           };
         } finally {
+          if (fileRead === controller) fileRead = undefined;
           if (method !== "GET") activeMutations--;
         }
       });

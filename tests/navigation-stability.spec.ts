@@ -757,3 +757,61 @@ test("rapid arrows through newly discovered worktrees honor the last selection",
   expect(errors).toEqual([]);
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
+
+test("fast file arrows cancel stale reads and display the final file without waiting for them", async ({
+  page,
+}) => {
+  const { errors } = await fixture(page);
+  await ready(page);
+  const reads: string[] = [];
+  let releaseSlow!: () => void;
+  const slow = new Promise<void>((resolve) => {
+    releaseSlow = resolve;
+  });
+  await page.route("**/projects/*/file?**", async (route) => {
+    const name = new URL(route.request().url()).searchParams.get("path")!;
+    reads.push(name);
+    if (name === "src/01.ts") await slow;
+    await route.fulfill({
+      headers: { "Access-Control-Allow-Origin": "*" },
+      json: {
+        path: name,
+        old: "before\n",
+        current: `selected_${name.replace(/\W/g, "_")}\n`,
+        binary: false,
+        conflict: false,
+      },
+    });
+  });
+  await page.locator('.tree-item-select[data-path="src/00.ts"]').click();
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => reads.includes("src/01.ts")).toBe(true);
+  await keys(page, "ArrowDown", 2);
+  await expect(page.locator(".diff-toolbar")).toContainText("src/03.ts");
+  await expect(page.locator("diffs-container")).toContainText(
+    "selected_src_03_ts",
+  );
+  releaseSlow();
+  await expect(page.locator("diffs-container")).toContainText(
+    "selected_src_03_ts",
+  );
+  await page.keyboard.press("ArrowUp");
+  await expect(page.locator("diffs-container")).toContainText(
+    "selected_src_02_ts",
+  );
+  // A revisit displays the cached final file even while its refresh is held.
+  let releaseRefresh!: () => void;
+  const refresh = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  await page.route("**/file?**", async (route) => {
+    await refresh;
+    await route.fallback();
+  });
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator("diffs-container")).toContainText(
+    "selected_src_03_ts",
+  );
+  releaseRefresh();
+  expect(errors).toEqual([]);
+});

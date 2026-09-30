@@ -201,6 +201,7 @@ export function App() {
   const [content, setContent] = useState<FileContent | null>(demoContent);
   const [fileLoading, setFileLoading] = useState(false);
   const lastFileRequest = useRef("");
+  const workingContents = useRef(new Map<string, FileContent>());
   const selectedIsFolder = files.some((file) =>
     file.path.startsWith(`${selected}/`),
   );
@@ -663,28 +664,37 @@ export function App() {
       setContent(null);
       return;
     }
+    const controller = new AbortController();
     const key = `${active}:${commit}:${comparisonBase || ""}:${selected}`;
-    const cached = commit ? commitContents.current.get(key) : undefined;
-    const read = () =>
-      bridge.file(
-        active,
-        selected,
-        commit,
-        comparisonBase,
-        localChanges ? stageLayer : undefined,
-      );
+    const requestKey = `${key}:${localChanges ? stageLayer : ""}`;
+    const cached = commit
+      ? commitContents.current.get(key)
+      : workingContents.current.get(requestKey);
     if (cached) {
       setContent(cached);
       setFileLoading(false);
-      return;
-    }
-    const requestKey = `${key}:${localChanges ? stageLayer : ""}`;
-    if (lastFileRequest.current !== requestKey) setFileLoading(true);
+    } else if (lastFileRequest.current !== requestKey) setFileLoading(true);
     lastFileRequest.current = requestKey;
-    (commit ? commitContents.current.load(key, read) : read())
-      .then((next) => {
-        if (!ignore)
-          setContent((previous) =>
+    if (commit && cached) return;
+    // Coalesce held-arrow repeats before spawning Git reads. The final selection
+    // always wins; superseded reads are cancelled through the HTTP/desktop bridge.
+    const timer = setTimeout(() => {
+      const read = () =>
+        bridge.file(
+          active,
+          selected,
+          commit,
+          comparisonBase,
+          localChanges ? stageLayer : undefined,
+          controller.signal,
+        );
+      // Commit cache is immutable. Working files are displayed from cache while
+      // revalidating so revisiting a file also reuses its prepared diff.
+      read()
+        .then((next) => {
+          if (ignore) return;
+          const previous = cached;
+          const same =
             previous &&
             previous.path === next.path &&
             previous.old === next.old &&
@@ -692,22 +702,38 @@ export function App() {
             previous.binary === next.binary &&
             previous.conflict === next.conflict &&
             previous.ours === next.ours &&
-            previous.theirs === next.theirs
-              ? previous
-              : next,
-          );
-      })
-      .catch((e) => {
-        if (!ignore && activeRef.current === active) {
-          setContent(null);
-          setActionError(e.message);
-        }
-      })
-      .finally(() => {
-        if (!ignore) setFileLoading(false);
-      });
+            previous.theirs === next.theirs;
+          const value = same ? previous : next;
+          if (commit)
+            void commitContents.current.load(key, () => Promise.resolve(value));
+          else if (value.old.length + value.current.length < 500000) {
+            workingContents.current.delete(requestKey);
+            workingContents.current.set(requestKey, value);
+            if (workingContents.current.size > 24)
+              workingContents.current.delete(
+                workingContents.current.keys().next().value!,
+              );
+          }
+          setContent(value);
+        })
+        .catch((error) => {
+          if (
+            !ignore &&
+            !controller.signal.aborted &&
+            activeRef.current === active
+          ) {
+            setContent(null);
+            setActionError(error.message);
+          }
+        })
+        .finally(() => {
+          if (!ignore) setFileLoading(false);
+        });
+    }, 35);
     return () => {
       ignore = true;
+      clearTimeout(timer);
+      controller.abort();
     };
   }, [
     connected,
