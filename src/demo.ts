@@ -75,7 +75,7 @@ export const demo: Snapshot = {
   ].map((subject, i) => ({
     hash: `example-${i}`,
     short: ["a4e9f21", "b8c320a", "c31d9f4", "d86a3c2"][i],
-    parents: "",
+    parents: i < 3 ? `example-${i + 1}` : "",
     author: "Example author",
     date: new Date(Date.now() - i * 3600000).toISOString(),
     subject,

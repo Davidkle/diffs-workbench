@@ -1,7 +1,18 @@
-import { useRef, type KeyboardEvent, type MouseEvent } from "react";
-import { GitBranch } from "lucide-react";
+import { useMemo, useRef, type KeyboardEvent, type MouseEvent } from "react";
+import { Check, GitBranch } from "lucide-react";
 import type { Commit } from "@/types";
 import { selectRange } from "@/selection";
+import { commitGraph } from "@/commit-graph";
+
+const graphColors = [
+  "#ff9d00",
+  "#f0cf58",
+  "#6fc5a4",
+  "#79b6ed",
+  "#c39bef",
+  "#ed97b5",
+];
+const laneX = (column: number) => 9 + column * 12;
 
 type Props = {
   commits: Commit[];
@@ -14,6 +25,8 @@ export function CommitHistory({ commits, branch, selected, onSelect }: Props) {
   const anchor = useRef<string | undefined>(undefined);
   const list = useRef<HTMLDivElement>(null);
   const ids = commits.map((commit) => commit.hash);
+  const graph = useMemo(() => commitGraph(commits), [commits]);
+  const graphWidth = graph.columns * 12 + 6;
   const choose = (id: string, event: MouseEvent | KeyboardEvent) => {
     const additive = event.metaKey || event.ctrlKey;
     const next = selectRange(
@@ -52,7 +65,8 @@ export function CommitHistory({ commits, branch, selected, onSelect }: Props) {
               );
       const rows =
         list.current?.querySelectorAll<HTMLButtonElement>('[role="option"]');
-      rows?.[next]?.focus();
+      rows?.[next]?.focus({ preventScroll: true });
+      rows?.[next]?.scrollIntoView({ block: "nearest", inline: "nearest" });
       if (!event.metaKey && !event.ctrlKey) choose(ids[next], event);
     } else if (event.key === " ") {
       event.preventDefault();
@@ -77,13 +91,49 @@ export function CommitHistory({ commits, branch, selected, onSelect }: Props) {
           onClick={(event) => choose(commit.hash, event)}
           onKeyDown={(event) => onKey(event, index)}
         >
-          <span className={`graph-node graph-${index % 3}`}>
-            <span />
-          </span>
+          <svg
+            className="commit-graph"
+            width={graphWidth}
+            viewBox={`0 0 ${graphWidth} 28`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            {graph.rows[index].edges.map((edge, edgeIndex) => {
+              const x1 = laneX(edge.from);
+              const x2 = laneX(edge.to);
+              const y1 = edge.half === "top" ? 0 : 14;
+              const y2 = edge.half === "top" ? 14 : 28;
+              return (
+                <path
+                  key={edgeIndex}
+                  d={`M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2} ${x2} ${(y1 + y2) / 2} ${x2} ${y2}`}
+                  stroke={graphColors[edge.color % graphColors.length]}
+                  strokeWidth={1.5}
+                  fill="none"
+                />
+              );
+            })}
+            <circle
+              cx={laneX(graph.rows[index].column)}
+              cy={14}
+              r={graph.rows[index].merge ? 4 : 2.5}
+              fill={
+                graph.rows[index].merge
+                  ? "var(--workspace-surface)"
+                  : graphColors[graph.rows[index].color % graphColors.length]
+              }
+              stroke={graphColors[graph.rows[index].color % graphColors.length]}
+              strokeWidth={1.5}
+            />
+          </svg>
           <span className="commit-subject">
             {commit.refs && (
               <span className="branch-label" title={commit.refs}>
-                <GitBranch size={10} />
+                {commit.refs.includes("HEAD") ? (
+                  <Check size={12} />
+                ) : (
+                  <GitBranch size={10} />
+                )}
                 {commit.refs.includes("HEAD")
                   ? branch
                   : commit.refs.split(",")[0]}

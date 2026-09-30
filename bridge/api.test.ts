@@ -1,13 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readFile, rm, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readFile,
+  rm,
+  realpath,
+} from "node:fs/promises";
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { git } from "./git.js";
 
 test("authenticated bridge supports branch, stash, worktree and remote workflows", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "diffs-api-"));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "donkey-diff-api-"));
   const repo = path.join(tmp, "repo");
   const data = path.join(tmp, "data");
   const remote = path.join(tmp, "remote.git");
@@ -25,7 +32,11 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
     ["--import", "tsx", "bridge/server.ts", repo],
     {
       cwd: process.cwd(),
-      env: { ...process.env, DIFFS_PORT: "43128", DIFFS_DATA_DIR: data },
+      env: {
+        ...process.env,
+        DONKEY_DIFF_PORT: "43128",
+        DONKEY_DIFF_DATA_DIR: data,
+      },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -87,6 +98,13 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
     const projects = await api("/projects");
     assert.equal(projects.length, 1);
     const id = projects[0].id;
+    const navigation = await api(`/projects/${id}/navigation`);
+    assert.equal(navigation.branch, "main");
+    assert.equal(navigation.files.length, 0);
+    assert.equal(
+      (await api(`/projects/${id}/history?ref=refs%2Fheads%2Fmain`))[0].subject,
+      "Initial",
+    );
     const action = (type: string, extra: Record<string, string> = {}) =>
       api(`/projects/${id}/action`, { action: type, ...extra });
     await action("branch-create", { name: "feature" });
@@ -107,22 +125,160 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
       await readFile(path.join(repo, "file.txt"), "utf8"),
       "changed\n",
     );
+    await assert.rejects(
+      action("commit", { name: "Nothing staged" }),
+      /Stage changes/,
+    );
+    await action("stage", { path: "file.txt" });
+    await writeFile(path.join(repo, "file.txt"), "unstaged follow-up\n");
+    const partial = (await api(`/projects/${id}`)).files.find(
+      (file: { path: string }) => file.path === "file.txt",
+    );
+    assert.equal(partial.staged, true);
+    assert.equal(partial.unstaged, true);
+    const staged = await api(`/projects/${id}/file?path=file.txt&layer=staged`);
+    const unstaged = await api(
+      `/projects/${id}/file?path=file.txt&layer=unstaged`,
+    );
+    assert.equal(staged.old, "initial\n");
+    assert.equal(staged.current, "changed\n");
+    assert.equal(unstaged.old, "changed\n");
+    assert.equal(unstaged.current, "unstaged follow-up\n");
+    await action("commit", { name: "Only staged changes" });
+    assert.equal(await git(repo, ["show", "HEAD:file.txt"]), "changed\n");
+    assert.equal(
+      await readFile(path.join(repo, "file.txt"), "utf8"),
+      "unstaged follow-up\n",
+    );
+    await mkdir(path.join(repo, "folder"));
+    await writeFile(path.join(repo, "folder/a.txt"), "a\n");
+    await writeFile(path.join(repo, "folder/b.txt"), "b\n");
+    await writeFile(path.join(repo, "folder-sibling.txt"), "sibling\n");
+    await action("stage", { path: "folder" });
+    assert.deepEqual(
+      (await git(repo, ["diff", "--cached", "--name-only"])).trim().split("\n"),
+      ["folder/a.txt", "folder/b.txt"],
+    );
+    await action("unstage", { path: "folder" });
+    assert.equal(await git(repo, ["diff", "--cached", "--name-only"]), "");
+    assert.equal(
+      await readFile(path.join(repo, "folder/a.txt"), "utf8"),
+      "a\n",
+    );
+    await writeFile(path.join(repo, ":(glob)*"), "literal\n");
+    await action("stage", { path: ":(glob)*" });
+    assert.equal(
+      (await git(repo, ["diff", "--cached", "--name-only"])).trim(),
+      ":(glob)*",
+    );
+    await action("unstage", { path: ":(glob)*" });
+    await assert.rejects(
+      action("stage", { path: "../outside" }),
+      /Invalid file/,
+    );
+    await action("stage", { path: "." });
     await action("commit", { name: "Updated" });
     await action("push");
     await action("pull");
     assert.match((await action("sync")).message, /Up to date/);
+    // Manual Pull allows both fast-forwards and merges, even with restrictive
+    // user preferences. All repository mutations here use disposable fixtures.
+    const peer = path.join(tmp, "peer");
+    await git(tmp, ["clone", "-b", "main", remote, peer]);
+    await git(peer, ["config", "user.name", "Test"]);
+    await git(peer, ["config", "user.email", "test@example.com"]);
+    await git(repo, ["config", "pull.ff", "only"]);
+    await git(repo, ["config", "pull.rebase", "true"]);
+    await git(repo, ["config", "branch.main.rebase", "true"]);
+    await writeFile(path.join(peer, "remote.txt"), "remote one\n");
+    await git(peer, ["add", "."]);
+    await git(peer, ["commit", "-m", "Remote fast-forward"]);
+    await git(peer, ["push"]);
+    const fastForwardTip = (await git(peer, ["rev-parse", "HEAD"])).trim();
+    await action("pull");
+    assert.equal(
+      (await git(repo, ["rev-parse", "HEAD"])).trim(),
+      fastForwardTip,
+    );
+
+    await writeFile(path.join(repo, "local.txt"), "local commit\n");
+    await git(repo, ["add", "."]);
+    await git(repo, ["commit", "-m", "Local divergence"]);
+    const localTip = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    await writeFile(path.join(peer, "remote.txt"), "remote two\n");
+    await git(peer, ["commit", "-am", "Remote divergence"]);
+    await git(peer, ["push"]);
+    const remoteTip = (await git(peer, ["rev-parse", "HEAD"])).trim();
+    assert.match((await action("sync")).message, /diverged/);
+    assert.equal((await git(repo, ["rev-parse", "HEAD"])).trim(), localTip);
+    await action("pull");
+    assert.deepEqual(
+      (await git(repo, ["show", "-s", "--format=%P", "HEAD"]))
+        .trim()
+        .split(" "),
+      [localTip, remoteTip],
+    );
+    assert.equal(
+      await readFile(path.join(repo, "local.txt"), "utf8"),
+      "local commit\n",
+    );
+    assert.equal(
+      await readFile(path.join(repo, "remote.txt"), "utf8"),
+      "remote two\n",
+    );
+    const mergedTip = (await git(repo, ["rev-parse", "HEAD"])).trim();
+    await action("pull");
+    assert.equal((await git(repo, ["rev-parse", "HEAD"])).trim(), mergedTip);
+
+    await writeFile(path.join(peer, "remote.txt"), "remote three\n");
+    await git(peer, ["commit", "-am", "Remote follow-up"]);
+    await git(peer, ["push"]);
+    await writeFile(
+      path.join(repo, "remote.txt"),
+      "keep my uncommitted work\n",
+    );
+    await assert.rejects(action("pull"), /local changes.*overwritten/s);
+    assert.equal(
+      await readFile(path.join(repo, "remote.txt"), "utf8"),
+      "keep my uncommitted work\n",
+    );
+    assert.equal((await git(repo, ["rev-parse", "HEAD"])).trim(), mergedTip);
+    await writeFile(path.join(repo, "remote.txt"), "remote two\n");
     const tree = path.join(tmp, "tree");
     const moved = path.join(tmp, "moved");
     await action("worktree-create", { name: "tree", path: tree });
     assert.equal((await api(`/projects/${id}`)).worktrees.length, 2);
-    await action("worktree-move", { from: tree, path: moved });
+    const linked = await api("/projects", { path: tree });
+    const linkedAction = (action: string, input: Record<string, string>) =>
+      api(`/projects/${linked.id}/action`, { action, ...input });
+    await linkedAction("worktree-move", { from: tree, path: moved });
     const canonicalMoved = await realpath(moved);
     assert.ok(
       (await api(`/projects/${id}`)).worktrees.some(
         (w: { path: string }) => w.path === canonicalMoved,
       ),
     );
-    await action("worktree-remove", { from: moved });
+    assert.equal(
+      (await api(`/projects/${linked.id}`)).project.path,
+      canonicalMoved,
+    );
+    await writeFile(path.join(moved, "untracked.txt"), "keep me");
+    await assert.rejects(
+      linkedAction("worktree-remove", { from: moved }),
+      /untracked|modified/,
+    );
+    await rm(path.join(moved, "untracked.txt"));
+    await git(repo, ["worktree", "lock", moved]);
+    await assert.rejects(
+      linkedAction("worktree-remove", { from: moved }),
+      /locked/i,
+    );
+    await git(repo, ["worktree", "unlock", moved]);
+    await linkedAction("worktree-remove", { from: moved });
+    assert.equal(
+      (await api("/projects")).some((p: { id: string }) => p.id === linked.id),
+      false,
+    );
     assert.equal((await api(`/projects/${id}`)).worktrees.length, 1);
   } finally {
     child.kill("SIGTERM");

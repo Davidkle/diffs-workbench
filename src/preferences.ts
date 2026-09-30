@@ -1,6 +1,6 @@
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 export const preferenceKey = (project: string, area: string, path: string) =>
-  `diffs-state:${JSON.stringify([project, area, path])}`;
+  `donkey-diff-state:${JSON.stringify([project, area, path])}`;
 
 export class BooleanPreferences {
   private memory = new Map<string, boolean>();

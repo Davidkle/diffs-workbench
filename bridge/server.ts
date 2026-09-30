@@ -14,16 +14,18 @@ import {
   git,
   validateRepo,
   snapshot,
+  commitHistory,
   changedFiles,
   fileContent,
   sync,
   resolveFile,
+  safeFile,
 } from "./git.js";
 import type { Project } from "../src/types.js";
 const app = express();
-const port = Number(process.env.DIFFS_PORT || 43127);
+const port = Number(process.env.DONKEY_DIFF_PORT || 43127);
 const dataDir =
-  process.env.DIFFS_DATA_DIR || path.join(os.homedir(), ".diffs-workbench");
+  process.env.DONKEY_DIFF_DATA_DIR || path.join(os.homedir(), ".donkey-diff");
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
 const statePath = path.join(dataDir, "projects.json");
 const tokenPath = path.join(dataDir, "token");
@@ -87,7 +89,8 @@ const origins = new Set([
   "http://localhost:4173",
   "http://127.0.0.1:4173",
   ...(
-    process.env.DIFFS_ALLOWED_ORIGINS || "https://diffs-workbench.vercel.app"
+    process.env.DONKEY_DIFF_ALLOWED_ORIGINS ||
+    "https://diffs-workbench.vercel.app"
   ).split(","),
 ]);
 app.use((req, res, next) => {
@@ -130,7 +133,7 @@ app.use((req, res, next) => {
     return;
   }
   if (req.path === "/health") {
-    res.json({ app: "diffs-workbench", version: "0.1.0" });
+    res.json({ app: "donkey-diff", version: "0.1.0" });
     return;
   }
   const supplied = Buffer.from(
@@ -178,6 +181,13 @@ app.delete("/projects/:id", async (req, res) => {
 app.get("/projects/:id", async (req, res) =>
   res.json(await snapshot(projectFor(req.params.id))),
 );
+app.get("/projects/:id/navigation", async (req, res) =>
+  res.json(await snapshot(projectFor(req.params.id), true)),
+);
+app.get("/projects/:id/history", async (req, res) => {
+  const ref = z.string().min(1).max(1024).parse(req.query.ref);
+  res.json(await commitHistory(projectFor(req.params.id).path, ref));
+});
 app.get("/projects/:id/files", async (req, res) => {
   const project = projectFor(req.params.id);
   res.json(
@@ -210,15 +220,23 @@ app.get("/projects/:id/file", async (req, res) => {
     path: name,
     commit,
     base,
+    layer,
   } = z
     .object({
       path: z.string(),
       commit: z.string().optional(),
       base: z.string().optional(),
+      layer: z.enum(["staged", "unstaged"]).optional(),
     })
     .parse(req.query);
   res.json(
-    await fileContent(projectFor(req.params.id).path, name, commit, base),
+    await fileContent(
+      projectFor(req.params.id).path,
+      name,
+      commit,
+      base,
+      layer,
+    ),
   );
 });
 const actionSchema = z.object({
@@ -239,6 +257,8 @@ const actionSchema = z.object({
     "stash-pop",
     "stash-drop",
     "resolve",
+    "stage",
+    "unstage",
     "commit",
   ]),
   name: z.string().optional(),
@@ -268,7 +288,7 @@ app.post("/projects/:id/action", async (req, res) => {
           (await git(cwd, ["fetch", "--all", "--prune"])) || "Remotes fetched";
         break;
       case "pull":
-        message = await git(cwd, ["pull", "--ff-only"]);
+        message = await git(cwd, ["pull", "--no-rebase", "--ff", "--no-edit"]);
         break;
       case "push": {
         const branch = (
@@ -322,16 +342,25 @@ app.post("/projects/:id/action", async (req, res) => {
       case "worktree-move":
       case "worktree-remove": {
         const source = await realpath(required(input.from, "Worktree path"));
-        const state = await snapshot(project);
+        const state = await snapshot(project, true);
         const tree = state.worktrees.find((w) => w.path === source);
-        if (!tree || source === cwd) throw new Error("Select another worktree");
+        if (!tree) throw new Error("Worktree is no longer registered");
         if (tree.locked) throw new Error("Worktree is locked");
+        // Run from the common Git directory so the currently viewed checkout
+        // can be moved or removed without deleting the command's working directory.
+        const gitDir = (
+          await git(cwd, [
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+          ])
+        ).trim();
         if (input.action === "worktree-remove") {
-          message = await git(cwd, ["worktree", "remove", source]);
+          message = await git(gitDir, ["worktree", "remove", source]);
           projects = projects.filter((p) => p.path !== source);
         } else {
           const dest = path.resolve(required(input.path, "New path"));
-          message = await git(cwd, ["worktree", "move", source, dest]);
+          message = await git(gitDir, ["worktree", "move", source, dest]);
           const canonicalDest = await realpath(dest);
           projects = projects.map((p) =>
             p.path === source
@@ -352,7 +381,7 @@ app.post("/projects/:id/action", async (req, res) => {
           "push",
           "--include-untracked",
           "-m",
-          input.name || "Stashed from Diffs",
+          input.name || "Stashed from Donkey Diff",
         ]);
         break;
       case "stash-apply":
@@ -380,8 +409,54 @@ app.post("/projects/:id/action", async (req, res) => {
         const files = await changedFiles(cwd);
         if (files.some((f) => f.conflict))
           throw new Error("Resolve conflicts first");
-        await git(cwd, ["add", "-A"]);
+        if (!files.some((file) => file.staged))
+          throw new Error("Stage changes before committing");
         message = await git(cwd, ["commit", "-m", msg]);
+        break;
+      }
+      case "stage":
+      case "unstage": {
+        const target = input.path;
+        if (!target) throw new Error("Select a file or folder");
+        if (target !== ".") await safeFile(cwd, target);
+        const files = (await changedFiles(cwd)).filter(
+          (file) =>
+            (target === "." ||
+              file.path === target ||
+              file.path.startsWith(`${target}/`)) &&
+            (input.action === "stage" ? file.unstaged : file.staged),
+        );
+        const paths = [
+          ...new Set(
+            files.flatMap((file) =>
+              input.action === "unstage" && file.oldPath
+                ? [file.oldPath, file.path]
+                : [file.path],
+            ),
+          ),
+        ];
+        if (!paths.length) break;
+        if (input.action === "stage") {
+          await git(cwd, ["--literal-pathspecs", "add", "-A", "--", ...paths]);
+        } else {
+          const hasHead = await git(cwd, [
+            "rev-parse",
+            "--verify",
+            "HEAD",
+          ]).then(
+            () => true,
+            () => false,
+          );
+          await git(cwd, [
+            "--literal-pathspecs",
+            ...(hasHead
+              ? ["reset", "-q", "HEAD"]
+              : ["rm", "--cached", "--force", "--ignore-unmatch"]),
+            "--",
+            ...paths,
+          ]);
+        }
+        message = `${input.action === "stage" ? "Staged" : "Unstaged"} ${files.length} file${files.length === 1 ? "" : "s"}`;
         break;
       }
     }
@@ -399,6 +474,6 @@ app.use(
 );
 app.listen(port, "127.0.0.1", () =>
   console.log(
-    `Diffs local bridge listening at http://127.0.0.1:${port}\n${projects.length} repositories available. Pairing key: ${tokenPath}\nAllowed apps: ${[...origins].join(", ")}`,
+    `Donkey Diff local bridge listening at http://127.0.0.1:${port}\n${projects.length} repositories available. Pairing key: ${tokenPath}\nAllowed apps: ${[...origins].join(", ")}`,
   ),
 );

@@ -42,7 +42,7 @@ export async function git(cwd: string, args: string[]) {
     if (e.code === "ENOENT") {
       await assertProjectDirectory(cwd);
       throw new Error(
-        "Git could not be found. Install Git or reopen Diffs after updating your Git installation.",
+        "Git could not be found. Install Git or reopen Donkey Diff after updating your Git installation.",
         { cause: error },
       );
     }
@@ -85,6 +85,7 @@ export function parseStatus(raw: string): ChangedFile[] {
                   ? "R"
                   : "M",
       staged: ![" ", "?"].includes(xy[0]),
+      unstaged: xy[1] !== " ",
       conflict: /U/.test(xy) || xy === "AA" || xy === "DD",
       additions: 0,
       deletions: 0,
@@ -93,9 +94,10 @@ export function parseStatus(raw: string): ChangedFile[] {
   return files;
 }
 function addStats(files: ChangedFile[], stats: string) {
+  const byPath = new Map(files.map((file) => [file.path, file]));
   for (const entry of stats.split("\0").filter(Boolean)) {
     const [add, del, ...names] = entry.split("\t");
-    const file = files.find((f) => f.path === names.join("\t"));
+    const file = byPath.get(names.join("\t"));
     if (file) {
       file.additions += Number(add) || 0;
       file.deletions += Number(del) || 0;
@@ -156,28 +158,85 @@ export async function changedFiles(
       "--",
     ]),
   );
-  for (const file of files.filter((f) => f.status === "A" && !f.staged)) {
-    try {
-      const target = await safeFile(cwd, file.path);
-      const stat = await lstat(target);
-      if (stat.isFile() && stat.size <= 5 * 1024 * 1024) {
-        const text = await readFile(target, "utf8");
-        if (!text.includes("\0"))
-          file.additions = text
-            ? text.split("\n").length - Number(text.endsWith("\n"))
-            : 0;
+  const pending = files.filter((f) => f.status === "A" && !f.staged);
+  await Promise.all(
+    Array.from({ length: Math.min(8, pending.length) }, async () => {
+      let file: ChangedFile | undefined;
+      while ((file = pending.shift())) {
+        try {
+          const target = await safeFile(cwd, file.path);
+          const stat = await lstat(target);
+          if (stat.isFile() && stat.size <= 5 * 1024 * 1024) {
+            const text = await readFile(target, "utf8");
+            if (!text.includes("\0"))
+              file.additions = text
+                ? text.split("\n").length - Number(text.endsWith("\n"))
+                : 0;
+          }
+        } catch {
+          /* Unreadable and symbolic-link entries remain listed. */
+        }
       }
-    } catch {
-      /* Unreadable and symbolic-link entries remain listed. */
-    }
-  }
+    }),
+  );
   return files;
 }
 async function validateCommit(cwd: string, commit: string) {
   if (!/^[a-f0-9]{7,40}$/.test(commit)) throw new Error("Invalid commit");
   await git(cwd, ["cat-file", "-e", `${commit}^{commit}`]);
 }
-export async function snapshot(project: Project): Promise<Snapshot> {
+export async function commitHistory(
+  cwd: string,
+  ref: string,
+): Promise<Commit[]> {
+  await assertProjectDirectory(cwd);
+  if (
+    ref === "HEAD" &&
+    !(await optional(cwd, ["rev-parse", "--verify", "HEAD"])).trim()
+  )
+    return [];
+  const hash = (
+    await git(cwd, [
+      "rev-parse",
+      "--verify",
+      "--end-of-options",
+      `${ref}^{commit}`,
+    ])
+  ).trim();
+  return parseCommits(
+    await git(cwd, [
+      "log",
+      "-150",
+      "--topo-order",
+      "--format=%H%x09%h%x09%P%x09%an%x09%aI%x09%D%x09%s",
+      hash,
+      "--",
+    ]),
+  );
+}
+function parseCommits(logs: string): Commit[] {
+  return logs
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, short, parents, author, date, refs, ...subject] =
+        line.split("\t");
+      return {
+        hash,
+        short,
+        parents,
+        author,
+        date,
+        refs,
+        subject: subject.join("\t"),
+      };
+    });
+}
+export async function snapshot(
+  project: Project,
+  navigationOnly = false,
+): Promise<Snapshot> {
   const cwd = project.path;
   await assertProjectDirectory(cwd);
   const [
@@ -191,12 +250,13 @@ export async function snapshot(project: Project): Promise<Snapshot> {
     logs,
     tracking,
   ] = await Promise.all([
-    changedFiles(cwd),
+    navigationOnly ? Promise.resolve([]) : changedFiles(cwd),
     optional(cwd, ["symbolic-ref", "--short", "HEAD"], "detached"),
     git(cwd, [
       "for-each-ref",
-      "--format=%(refname:short)%09%(HEAD)%09%(upstream:short)%09%(upstream:track)",
+      "--format=%(refname:short)%09%(HEAD)%09%(upstream:short)%09%(upstream:track)%09%(refname)",
       "refs/heads",
+      "refs/remotes",
     ]),
     git(cwd, ["worktree", "list", "--porcelain"]),
     optional(cwd, ["stash", "list", "--format=%gd%x09%s"]),
@@ -205,7 +265,8 @@ export async function snapshot(project: Project): Promise<Snapshot> {
     optional(cwd, [
       "log",
       "-150",
-      "--format=%H%x09%h%x09%p%x09%an%x09%aI%x09%D%x09%s",
+      "--topo-order",
+      "--format=%H%x09%h%x09%P%x09%an%x09%aI%x09%D%x09%s",
     ]),
     optional(
       cwd,
@@ -230,23 +291,7 @@ export async function snapshot(project: Project): Promise<Snapshot> {
         locked: lines.some((l) => l.startsWith("locked")),
       };
     });
-  const commits: Commit[] = logs
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [hash, short, parents, author, date, refs, ...subject] =
-        line.split("\t");
-      return {
-        hash,
-        short,
-        parents,
-        author,
-        date,
-        refs,
-        subject: subject.join("\t"),
-      };
-    });
+  const commits = parseCommits(logs);
   const [ahead, behind] = tracking.trim().split(/\s+/).map(Number);
   return {
     project,
@@ -257,8 +302,15 @@ export async function snapshot(project: Project): Promise<Snapshot> {
       .split("\n")
       .filter(Boolean)
       .map((line) => {
-        const [name, current, upstream, track] = line.split("\t");
-        return { name, current: current === "*", upstream, track };
+        const [name, current, upstream, track, ref] = line.split("\t");
+        return {
+          name,
+          current: current === "*",
+          upstream,
+          track,
+          ref,
+          remote: ref.startsWith("refs/remotes/"),
+        };
       }),
     worktrees,
     stashes: stashes
@@ -303,6 +355,7 @@ export async function fileContent(
   name: string,
   commit?: string,
   base?: string,
+  layer?: "staged" | "unstaged",
 ): Promise<FileContent> {
   const target = await safeFile(cwd, name);
   if (base && !commit) throw new Error("A target commit is required");
@@ -319,13 +372,15 @@ export async function fileContent(
       );
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
-  const oldName = changed?.oldPath || name;
+  const oldName = layer === "unstaged" ? name : changed?.oldPath || name;
   const old = await optional(cwd, [
     "show",
-    `${base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
+    `${!commit && layer === "unstaged" ? "" : base || (commit ? `${commit}^` : "HEAD")}:${oldName}`,
   ]);
   let current = "";
   if (commit) current = await optional(cwd, ["show", `${commit}:${name}`]);
+  else if (layer === "staged")
+    current = await optional(cwd, ["show", `:${name}`]);
   else {
     try {
       const stat = await lstat(target);
@@ -361,6 +416,19 @@ export async function sync(cwd: string) {
     !(await optional(cwd, ["rev-parse", "--abbrev-ref", "@{upstream}"])).trim()
   )
     return "Fetched · no upstream configured";
+  const [ahead, behind] = (
+    await git(cwd, [
+      "rev-list",
+      "--left-right",
+      "--count",
+      "HEAD...@{upstream}",
+    ])
+  )
+    .trim()
+    .split(/\s+/)
+    .map(Number);
+  if (ahead && behind)
+    return "Fetched · branches have diverged; use Pull to merge";
   await git(cwd, ["pull", "--ff-only"]);
   return "Up to date";
 }

@@ -4,6 +4,7 @@ export type ChangedFile = {
   oldPath?: string;
   status: string;
   staged: boolean;
+  unstaged?: boolean;
   conflict: boolean;
   additions: number;
   deletions: number;
@@ -18,6 +19,8 @@ export type Commit = {
   refs: string;
 };
 export type Branch = {
+  ref?: string;
+  remote?: boolean;
   name: string;
   current: boolean;
   upstream: string;
@@ -70,4 +73,6 @@ export type Action =
   | "stash-pop"
   | "stash-drop"
   | "resolve"
+  | "stage"
+  | "unstage"
   | "commit";

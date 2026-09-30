@@ -1,18 +1,18 @@
-# Diffs Workbench
+# Donkey Diff
 
 An open-source, local-first Git workbench with a desktop-style interface. Review code with [Pierre's Diffs](https://diffs.com), switch between projects, and manage your local Git workflow in a Mac app or browser.
 
-**[Download for Mac](https://github.com/Davidkle/diffs-workbench/releases/latest)** · [Web preview](https://diffs-workbench.vercel.app) · [MIT license](LICENSE)
+**[Download for Mac](https://github.com/DonkeyCut/donkey-diff/releases/latest)** · [Web preview](https://diffs-workbench.vercel.app) · [MIT license](LICENSE)
 
 ## Get started on Mac
 
 1. Download the Apple Silicon Mac app from Releases and unzip it.
-2. Open **Diffs**.
-3. Click **Choose folder** and select a Git project.
+2. Open **Donkey Diff**.
+3. Click **Add Project** and select a Git project.
 
 The app starts its local service automatically and remembers your projects. No Node.js installation, terminal, pairing key, or browser permissions are needed. Git must be installed; push and pull use your existing Git credentials.
 
-The first release is unsigned and not notarized by Apple, so macOS may block a downloaded copy. A Developer ID signed release is still needed for a warning-free public installation.
+Local development packages are unsigned. The daily release workflow requires Developer ID signing and Apple notarization before publishing; its credentials and first successful run still need to be verified. See [release setup](RELEASES.md).
 
 ## Features
 
@@ -27,7 +27,7 @@ The first release is unsigned and not notarized by Apple, so macOS may block a d
 - Fetch, fast-forward pull, push to origin, and optional automatic sync
 - Stash tracked and untracked changes; apply, pop, or delete stashes
 - Side-by-side conflict versions and an editable resolution, saved and staged locally
-- Commit all current changes with a message
+- Stage or unstage files and folders by double-clicking, then commit only staged changes
 - Responsive desktop and mobile layouts
 
 ## Browser setup (advanced)
@@ -37,15 +37,15 @@ A hosted website cannot directly access your computer's Git repositories. The Ve
 Requirements: **Node.js 22.12+** and **Git**. Remote operations use your existing local Git credentials / SSH agent. Authentication prompts are disabled in the bridge; authenticate in your terminal first if needed.
 
 ```sh
-git clone https://github.com/Davidkle/diffs-workbench.git
-cd diffs-workbench
+git clone https://github.com/DonkeyCut/donkey-diff.git donkey-diff
+cd donkey-diff
 npm ci
 npm run bridge -- /absolute/path/to/your/repository
 ```
 
 Keep that terminal running, open **https://diffs-workbench.vercel.app**, and click **Connect → Pair with local bridge**. Allow local network access if your browser asks. The pairing key is stored only in this browser tab's session storage. Re-pair after starting a new browser session.
 
-Add more projects with **Open** and their absolute local paths. Closing a project tab does not delete its repository. You can also explicitly scan a projects directory at startup:
+Add more projects with **File → Open Project…** and their absolute local paths. Closing a project tab does not delete its repository. You can also explicitly scan a projects directory at startup:
 
 ```sh
 npm run bridge -- --root /absolute/path/to/projects
@@ -62,17 +62,17 @@ npm run dev
 
 ### Sync behavior
 
-The active repository refreshes every 10 seconds while visible. With **Auto sync** enabled, it also fetches on project entry, browser focus, and every 60 seconds. It pulls only when the worktree is clean and an upstream exists, using `git pull --ff-only`. Divergence, authentication errors, or dirty files are reported in the status bar. Sync never force-pushes, resets, auto-stashes, or creates merge commits.
+The active repository refreshes every 10 seconds while visible. With **Auto sync** enabled, it also fetches on project entry, browser focus, and every 60 seconds. It pulls only when the worktree is clean and an upstream exists, using `git pull --ff-only`. Divergence, authentication errors, or dirty files are reported inline or in the Auto sync status. Sync never force-pushes, resets, auto-stashes, or creates merge commits.
 
 Remote commands use a 60-second timeout. Push uses `origin` and sets the current branch's upstream. Configure remotes in your terminal.
 
 ### Bridge configuration
 
-| Variable                | Default                              | Purpose                                               |
-| ----------------------- | ------------------------------------ | ----------------------------------------------------- |
-| `DIFFS_DATA_DIR`        | `~/.diffs-workbench`                 | Private token and registered project paths            |
-| `DIFFS_ALLOWED_ORIGINS` | `https://diffs-workbench.vercel.app` | Comma-separated production origins                    |
-| `DIFFS_PORT`            | `43127`                              | Bridge port (the frontend currently uses the default) |
+| Variable                      | Default                              | Purpose                                               |
+| ----------------------------- | ------------------------------------ | ----------------------------------------------------- |
+| `DONKEY_DIFF_DATA_DIR`        | `~/.donkey-diff`                     | Private token and registered project paths            |
+| `DONKEY_DIFF_ALLOWED_ORIGINS` | `https://diffs-workbench.vercel.app` | Comma-separated production origins                    |
+| `DONKEY_DIFF_PORT`            | `43127`                              | Bridge port (the frontend currently uses the default) |
 
 Local Vite origins on ports 5173 and 4173 are allowed for development. Pairing accepts only configured origins. The service binds to loopback, validates the Host header and Origin, authenticates API requests with a random bearer token, and serializes mutations per repository. Tokens and project paths are excluded from Git. Stop the bridge to revoke access; delete its token file while stopped to rotate the key.
 
@@ -96,6 +96,18 @@ npm run build
 
 Stack: React 19, TypeScript, Vite, Tailwind CSS 4, shadcn-style components built with Radix primitives, Express, Zod, and `@pierre/diffs`.
 
+### Mac updates
+
+Packaged Mac builds use Sparkle 2 with a custom update button. Checks run in the background; the blue top-right **Update** button appears only when an update is available and remains visible during installation. Clicking it downloads, installs, and restarts the app. Development builds do not run the updater. Git operations must finish before installation can start.
+
+`npm run package:mac` requires the Xcode command-line tools. It downloads the pinned, checksum-verified Sparkle framework and compiles the native Electron bridge. Update configuration lives in `desktop/sparkle/config.json`. Until a public signing key is configured, update checks are disabled and the button stays hidden.
+
+For the initial signing setup, explicitly create a dedicated key with `.cache/sparkle/bin/generate_keys --account donkey-diff`, then put its public key in the config's `publicKey` field. Keep the private key in Keychain; do not commit or reuse another app's signing key. Build-time overrides are `DONKEY_DIFF_SPARKLE_PUBLIC_ED_KEY` and `DONKEY_DIFF_SPARKLE_FEED_URL`.
+
+To prepare a release, increase the package version, run `npm run package:mac`, then `npm run prepare:update`. Sparkle signs the ZIP using the `donkey-diff` Keychain account and generates `appcast.xml`. For CI, `DONKEY_DIFF_SPARKLE_PRIVATE_KEY_FILE` can point to a securely provisioned private-key file. These commands do not publish anything. When ready to publish, upload the ZIP and generated `appcast.xml` to the matching `v<version>` GitHub release. The configured feed reads the appcast asset from the latest release. The shipped public key must match the signing key. The initial feed has no releases; automatic updates become available only after a signed release and feed are published. Distribution builds also need Apple signing and notarization; the current local packaging configuration is unsigned.
+
+The [daily release workflow and required secrets](RELEASES.md) cover signed distribution builds. Basic native usage telemetry is configured through an ignored `.env.local` file during packaging and can be disabled from **Privacy → Send Anonymous Usage Statistics**. It sends no repository names, paths, code, or commit messages.
+
 - `src/` — browser app, central API client, components, and styles
 - `desktop/` — Electron app, native folder picker, and restricted IPC
 - `bridge/` — local HTTP service and Git operations
@@ -107,7 +119,7 @@ Stack: React 19, TypeScript, Vite, Tailwind CSS 4, shadcn-style components built
 npx vercel --prod
 ```
 
-Vercel hosts the static `dist/` directory. The bridge is **not** deployed as a serverless function. For a fork/custom domain, set `DIFFS_ALLOWED_ORIGINS` to that deployment's exact origin when starting your bridge. The root page is a clearly labeled example until paired.
+Vercel hosts the static `dist/` directory. The bridge is **not** deployed as a serverless function. For a fork/custom domain, set `DONKEY_DIFF_ALLOWED_ORIGINS` to that deployment's exact origin when starting your bridge. The root page is a clearly labeled example until paired.
 
 ## Scope and limitations
 

@@ -1,3 +1,4 @@
+import { ContextMenu, type ContextAction } from "@/components/ui/context-menu";
 import { usePersistentBoolean } from "@/use-persistent-boolean";
 import {
   ChevronDown,
@@ -19,12 +20,16 @@ export function FileTree({
   selected,
   onSelect,
   filter,
+  onDoubleClick,
+  contextActions,
 }: {
   projectId: string;
   files: ChangedFile[];
   selected: string;
   onSelect: (path: string) => void;
   filter: string;
+  onDoubleClick?: (path: string) => void;
+  contextActions?: (path: string) => ContextAction[];
 }) {
   const root: Node = { name: "", path: "", children: new Map() };
   for (const file of files.filter((f) =>
@@ -44,7 +49,59 @@ export function FileTree({
     });
   }
   return (
-    <div className="file-tree" role="tree" aria-label="Files">
+    <div
+      className="file-tree"
+      role="tree"
+      aria-label="Files"
+      onKeyDown={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          !["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key) ||
+          !(event.target instanceof HTMLElement) ||
+          !event.currentTarget.contains(event.target)
+        )
+          return;
+
+        const items = [
+          ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+            ".tree-item-select",
+          ),
+        ];
+        if (!items.length) return;
+        const focused = event.target
+          .closest(".tree-row")
+          ?.querySelector(".tree-item-select");
+        const current = items.findIndex((item) =>
+          focused ? item === focused : item.dataset.path === selected,
+        );
+        const index =
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? items.length - 1
+              : current < 0
+                ? event.key === "ArrowUp"
+                  ? items.length - 1
+                  : 0
+                : Math.max(
+                    0,
+                    Math.min(
+                      items.length - 1,
+                      current + (event.key === "ArrowDown" ? 1 : -1),
+                    ),
+                  );
+        const next = items[index];
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect(next.dataset.path!);
+        next.focus({ preventScroll: true });
+        next.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }}
+    >
       {[...root.children.values()].sort(sortNodes).map((node) => (
         <TreeNode
           key={node.path}
@@ -54,6 +111,8 @@ export function FileTree({
           depth={0}
           selected={selected}
           onSelect={onSelect}
+          onDoubleClick={onDoubleClick}
+          contextActions={contextActions}
         />
       ))}
     </div>
@@ -69,6 +128,8 @@ function TreeNode({
   depth,
   selected,
   onSelect,
+  onDoubleClick,
+  contextActions,
 }: {
   projectId: string;
   filtering: boolean;
@@ -76,6 +137,8 @@ function TreeNode({
   depth: number;
   selected: string;
   onSelect: (path: string) => void;
+  onDoubleClick?: (path: string) => void;
+  contextActions?: (path: string) => ContextAction[];
 }) {
   const [savedOpen, setOpen] = usePersistentBoolean(
     projectId,
@@ -84,23 +147,41 @@ function TreeNode({
   );
   const open = filtering || savedOpen;
   const isFolder = !node.file;
-  return (
+  const row = (
     <div
-      role="treeitem"
-      aria-expanded={isFolder ? open : undefined}
-      aria-selected={!isFolder ? selected === node.path : undefined}
+      className={`tree-row ${selected === node.path ? "selected" : ""}`}
+      style={{ paddingLeft: isFolder ? 0 : 12 + depth * 16 }}
     >
+      {isFolder && (
+        <button
+          type="button"
+          className="tree-chevron"
+          style={{
+            width: 36 + depth * 16,
+            paddingLeft: 18 + depth * 16,
+            marginLeft: -6,
+          }}
+          aria-label={`${open ? "Collapse" : "Expand"} ${node.name}`}
+          aria-expanded={open}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!filtering) setOpen(!open);
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </button>
+      )}
       <button
-        className={`tree-row ${selected === node.path ? "selected" : ""}`}
-        style={{ paddingLeft: 12 + depth * 16 }}
-        onClick={() =>
-          isFolder ? !filtering && setOpen(!open) : onSelect(node.path)
-        }
+        type="button"
+        className="tree-item-select"
+        data-path={node.path}
+        onClick={() => onSelect(node.path)}
         title={node.path}
+        onDoubleClick={() => onDoubleClick?.(node.path)}
       >
         {isFolder ? (
           <>
-            {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}{" "}
             {open ? (
               <FolderOpen className="folder" size={15} />
             ) : (
@@ -118,6 +199,24 @@ function TreeNode({
         <span className="truncate">{node.name}</span>
         {node.file?.staged && <span className="staged-dot" title="Staged" />}
       </button>
+    </div>
+  );
+  return (
+    <div
+      role="treeitem"
+      aria-expanded={isFolder ? open : undefined}
+      aria-selected={selected === node.path}
+    >
+      {contextActions ? (
+        <ContextMenu
+          items={contextActions(node.path)}
+          onOpen={() => onSelect(node.path)}
+        >
+          {row}
+        </ContextMenu>
+      ) : (
+        row
+      )}
       {isFolder && open && (
         <div role="group">
           {[...node.children.values()].sort(sortNodes).map((child) => (
@@ -129,6 +228,8 @@ function TreeNode({
               depth={depth + 1}
               selected={selected}
               onSelect={onSelect}
+              onDoubleClick={onDoubleClick}
+              contextActions={contextActions}
             />
           ))}
         </div>
