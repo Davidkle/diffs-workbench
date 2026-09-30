@@ -23,7 +23,7 @@ export function capturePairingToken() {
   }
 }
 capturePairingToken();
-async function request<T>(
+export async function request<T>(
   route: string,
   method = "GET",
   body?: unknown,

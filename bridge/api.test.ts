@@ -27,6 +27,15 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
   await git(tmp, ["init", "--bare", remote]);
   await git(repo, ["remote", "add", "origin", remote]);
   await git(repo, ["push", "-u", "origin", "main"]);
+  const agent = path.join(tmp, "fake-claude");
+  await writeFile(
+    agent,
+    `#!/usr/bin/env node
+process.stdout.write(JSON.stringify({type:'system',subtype:'init',session_id:'fixture'})+'\\n');
+setInterval(() => {}, 1000);
+`,
+    { mode: 0o755 },
+  );
   const child = spawn(
     process.execPath,
     ["--import", "tsx", "bridge/server.ts", repo],
@@ -36,6 +45,7 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
         ...process.env,
         DONKEY_DIFF_PORT: "43128",
         DONKEY_DIFF_DATA_DIR: data,
+        DONKEY_DIFF_CLAUDE_BIN: agent,
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -98,6 +108,26 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
     const projects = await api("/projects");
     assert.equal(projects.length, 1);
     const id = projects[0].id;
+    assert.equal((await fetch(`${base}/projects/${id}/chat`)).status, 401);
+    assert.deepEqual(await api(`/projects/${id}/chat`), {
+      sessions: [],
+      skills: [],
+    });
+    await assert.rejects(
+      api(`/projects/${id}/chat/send`, {
+        provider: "codex",
+        model: "",
+        effort: "",
+        text: "",
+      }),
+    );
+    await assert.rejects(
+      api(`/projects/${id}/chat/stop`, { sessionId: "../outside" }),
+    );
+    await assert.rejects(
+      api("/projects/0000000000000000/chat"),
+      /Project not found/,
+    );
     const navigation = await api(`/projects/${id}/navigation`);
     assert.equal(navigation.branch, "main");
     assert.equal(navigation.files.length, 0);
@@ -251,6 +281,28 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
     const linked = await api("/projects", { path: tree });
     const linkedAction = (action: string, input: Record<string, string>) =>
       api(`/projects/${linked.id}/action`, { action, ...input });
+    const checkChatGuard = async (source: string, destination: string) => {
+      const { sessionId } = await api(`/projects/${linked.id}/chat/send`, {
+        provider: "claude",
+        model: "",
+        effort: "",
+        text: "wait",
+      });
+      await assert.rejects(
+        action("worktree-move", { from: source, path: destination }),
+        /chat to finish/,
+      );
+      await assert.rejects(
+        action("worktree-remove", { from: source }),
+        /chat to finish/,
+      );
+      assert.equal(
+        await readFile(path.join(source, "file.txt"), "utf8"),
+        await readFile(path.join(repo, "file.txt"), "utf8"),
+      );
+      await api(`/projects/${linked.id}/chat/stop`, { sessionId });
+    };
+    await checkChatGuard(tree, moved);
     await linkedAction("worktree-move", { from: tree, path: moved });
     const canonicalMoved = await realpath(moved);
     assert.ok(
@@ -262,6 +314,8 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
       (await api(`/projects/${linked.id}`)).project.path,
       canonicalMoved,
     );
+    // Moving a registered checkout preserves its ID; guard that ID as well.
+    await checkChatGuard(moved, tree);
     await writeFile(path.join(moved, "untracked.txt"), "keep me");
     await assert.rejects(
       linkedAction("worktree-remove", { from: moved }),

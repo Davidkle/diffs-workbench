@@ -113,6 +113,38 @@ The [daily release workflow and required secrets](RELEASES.md) cover signed dist
 - `bridge/` — local HTTP service and Git operations
 - `bridge/*.test.ts` — real temporary-repository integration tests
 
+## Project chat
+
+Click **Chat** to the right of **Branch** to open a resizable project panel. Choose a GPT or Claude model from the composer’s model chip. The agent starts in the selected repository or worktree and can read code, edit files, and run Git and shell commands you request. It uses the CLI's existing sign-in and configured MCP tools; prompts and context are handled by that provider as in its CLI.
+
+Install and sign into at least one local CLI first (`codex login` or `claude`). The bridge looks on `PATH`, in `~/.local/bin`, and in common Homebrew locations. Custom locations can be supplied with `DONKEY_DIFF_CODEX_BIN` and `DONKEY_DIFF_CLAUDE_BIN` in the bridge's environment. Executables are launched directly, without passing user messages through a shell.
+
+Codex conversations use the [local app-server protocol](https://developers.openai.com/codex/app-server); current Codex no longer provides `mcp-server`. Claude conversations use its [streaming CLI interface](https://code.claude.com/docs/en/headless); `claude mcp serve` exposes tools, not a conversational agent. No separate API key or hosted chat server is required by Donkey Diff. Both model lists and supported effort levels are discovered from the installed local agents. Selecting a model also selects its provider.
+
+The panel streams replies, shows Thinking and elapsed time, and exposes expandable command and file activity. **Stop** terminates that run and its child processes; it does not undo changes already made. Closing the panel leaves the run active. One conversation runs at a time per project, and other Git actions on that project are unavailable until it finishes. Auto sync pauses during the active chat. Conversations and provider session IDs are saved privately under the bridge data directory in `chats/`; the desktop app uses its own application data directory. The active conversation resumes after reload; use **+** to start a new chat. Browser drafts are saved separately per project.
+
+### Repository slash commands
+
+Add a folder containing `SKILL.md` under `.agents/skills/`. For example:
+
+```text
+.agents/skills/code-review/SKILL.md
+```
+
+```md
+---
+name: code-review
+description: Review changes for bugs and regressions.
+---
+
+Review the requested changes. Report actionable findings with file paths,
+line numbers, and concrete failure scenarios. Preserve the user's work.
+```
+
+Type `/code review` or `/code-review` and select the skill with Enter, Tab, or a click. Add optional instructions and send; the selected skill can also run by itself. The picker also appears after text in the composer. The backend reads the selected skill afresh before each invocation and includes its path so the agent can resolve supporting files. `.claude/skills/`, `.codex/skills/`, and `.donkey-diff/skills/` are also discovered, in that order after `.agents/skills/`. Duplicate names use the first location. Skills are limited to this repository, including symlink targets, and each `SKILL.md` must be at most 100 KB.
+
+This repository includes a working `code-review` skill. Skill discovery refreshes while the panel is open. Frontmatter uses single-line `name` and `description` fields.
+
 ## Deployment
 
 ```sh
@@ -135,4 +167,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports and improvements are welcome
 
 ## License and credits
 
-MIT © 2026 David Le. Diff rendering by [The Pierre Computer Company](https://diffs.com); icons by [Lucide](https://lucide.dev). The project is independent of Pierre and Vercel.
+MIT © 2026 David Le. Diff rendering by [The Pierre Computer Company](https://diffs.com); icons by [Lucide](https://lucide.dev). Chat conversation and message primitives are adapted from [Vercel AI Elements](https://elements.ai-sdk.dev/) under Apache-2.0 (license in `src/components/ai-elements/LICENSE`), with streaming Markdown rendered by Streamdown. The project is independent of Pierre and Vercel.

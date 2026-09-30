@@ -105,7 +105,7 @@ else {
         ownedFrame(event);
         if (
           typeof route !== "string" ||
-          !/^\/projects(?:\/[a-f0-9]{16}(?:\/(?:files|tree|file|action|navigation|history))?)?(?:\?.*)?$/.test(
+          !/^\/projects(?:\/[a-f0-9]{16}(?:\/(?:files|tree|file|action|navigation|history|chat(?:\/(?:providers|send|stop))?))?)?(?:\?.*)?$/.test(
             route,
           ) ||
           !["GET", "POST", "DELETE"].includes(method)
@@ -188,11 +188,18 @@ else {
           }
         },
       );
-      ipcMain.handle("update-action", (event) => {
+      ipcMain.handle("update-action", async (event) => {
         ownedFrame(event);
-        if (activeMutations)
+        const chatStatus = await fetch(`http://127.0.0.1:${port}/chat-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        }).then((response) => {
+          if (!response.ok) throw new Error("Could not check active chats");
+          return response.json();
+        });
+        if (activeMutations || chatStatus.running)
           throw new Error(
-            "Wait for the current Git operation to finish before updating.",
+            "Wait for the current Git operation or chat to finish before updating.",
           );
         void telemetry.capture("update_requested");
         return updater.activate();
@@ -255,17 +262,22 @@ else {
           },
           {
             label: "Privacy",
-            submenu: [{
-              label: "Send Anonymous Usage Statistics",
-              type: "checkbox",
-              checked: telemetry.isEnabled(),
-              click: (item) => {
-                void telemetry.setEnabled(item.checked).catch(() => {
-                  item.checked = telemetry.isEnabled();
-                  dialog.showErrorBox("Could not save preference", "Your usage preference could not be saved. Check that Donkey Diff can write its application data.");
-                });
+            submenu: [
+              {
+                label: "Send Anonymous Usage Statistics",
+                type: "checkbox",
+                checked: telemetry.isEnabled(),
+                click: (item) => {
+                  void telemetry.setEnabled(item.checked).catch(() => {
+                    item.checked = telemetry.isEnabled();
+                    dialog.showErrorBox(
+                      "Could not save preference",
+                      "Your usage preference could not be saved. Check that Donkey Diff can write its application data.",
+                    );
+                  });
+                },
               },
-            }],
+            ],
           },
           { role: "editMenu" },
           { role: "viewMenu" },

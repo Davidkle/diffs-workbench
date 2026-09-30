@@ -22,6 +22,7 @@ import {
   Link2,
   Loader2,
   Menu,
+  MessageSquare,
   MoreHorizontal,
   Plus,
   RefreshCw,
@@ -42,6 +43,7 @@ import { FileTree } from "@/components/FileTree";
 import { StagingTree, type StageLayer } from "@/components/StagingTree";
 import { CommitForm } from "@/components/CommitForm";
 import { WorkspaceLayout } from "@/components/WorkspaceLayout";
+import { ChatPanel } from "@/components/ChatPanel";
 import { UpdateButton } from "@/components/UpdateButton";
 import { DiffPane } from "@/components/DiffPane";
 import {
@@ -123,6 +125,12 @@ function Section({
   );
 }
 export function App() {
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatStarted, setChatStarted] = useState(false);
+  const [chatRunning, setChatRunning] = useState(false);
+  const [chatWidth, setChatWidth] = useState(
+    () => Number(localStorage.getItem("donkey-chat-width")) || 420,
+  );
   const [projects, setProjects] = useState<Project[]>([]);
   const [active, setActive] = useState(
     () => localStorage.getItem("donkey-diff-active") || "",
@@ -550,14 +558,14 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, connected, refresh]);
   useEffect(() => {
-    if (connected && active && autoSync) void doSync(active);
-  }, [active, connected, autoSync, doSync]);
+    if (connected && active && autoSync && !chatRunning) void doSync(active);
+  }, [active, connected, autoSync, chatRunning, doSync]);
   useEffect(() => {
     if (!connected || !active) return;
     const onFocus = () => {
       if (document.visibilityState === "visible") {
         void refresh(active).catch(() => setSyncText("Local bridge offline"));
-        if (autoSync) void doSync(active);
+        if (autoSync && !chatRunning) void doSync(active);
       }
     };
     window.addEventListener("focus", onFocus);
@@ -567,7 +575,7 @@ export function App() {
         void refresh(active).catch(() => setSyncText("Local bridge offline"));
     }, 10000);
     const syncTimer = setInterval(() => {
-      if (autoSync && document.visibilityState === "visible")
+      if (autoSync && !chatRunning && document.visibilityState === "visible")
         void doSync(active);
     }, 60000);
     return () => {
@@ -576,7 +584,7 @@ export function App() {
       clearInterval(timer);
       clearInterval(syncTimer);
     };
-  }, [connected, active, autoSync, refresh, doSync]);
+  }, [connected, active, autoSync, chatRunning, refresh, doSync]);
   useEffect(() => {
     if (
       !connected ||
@@ -1718,407 +1726,517 @@ export function App() {
                       ])
                     }
                   />
+                  <span className="chat-toolbar-divider" aria-hidden="true" />
+                  <button
+                    className={`tool chat-toggle ${chatOpen ? "selected" : ""}`}
+                    aria-label="Chat"
+                    aria-expanded={chatOpen}
+                    aria-controls="project-chat"
+                    onClick={() => {
+                      setChatStarted(true);
+                      setChatOpen(!chatOpen);
+                    }}
+                  >
+                    <MessageSquare size={15} />
+                    <small>Chat</small>
+                  </button>
                 </div>
               </header>
-              {!connected && (
-                <div className="demo-banner">
-                  <div>
-                    <span className="example-dot" />
-                    Preview workspace{" "}
-                    <span className="demo-description">
-                      Connect your computer to start reviewing local code.
-                    </span>
-                  </div>
-                  <button onClick={() => requireConnection()}>
-                    Connect local bridge{" "}
-                    <ArrowUp size={12} className="rotate-45" />
-                  </button>
-                </div>
-              )}
-              {actionError && (
-                <div className="action-error" role="alert">
-                  <span>{actionError}</span>
-                  <button
-                    aria-label="Dismiss error"
-                    onClick={() => setActionError("")}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-              {projectError?.id === active ? (
-                <div className="welcome-project" role="alert">
-                  <FolderOpen size={32} />
-                  <h2>Project unavailable</h2>
-                  <p className="project-error-message">
-                    {projectError.message}
-                  </p>
-                  <div className="project-error-actions">
-                    <Button onClick={openDialog}>Open folder…</Button>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        void refresh(active).catch(() => undefined)
+              <div
+                className="workspace-with-chat"
+                style={
+                  { "--chat-width": `${chatWidth}px` } as React.CSSProperties
+                }
+              >
+                <div className="chat-workbench">
+                  {!connected && (
+                    <div className="demo-banner">
+                      <div>
+                        <span className="example-dot" />
+                        Preview workspace{" "}
+                        <span className="demo-description">
+                          Connect your computer to start reviewing local code.
+                        </span>
+                      </div>
+                      <button onClick={() => requireConnection()}>
+                        Connect local bridge{" "}
+                        <ArrowUp size={12} className="rotate-45" />
+                      </button>
+                    </div>
+                  )}
+                  {actionError && (
+                    <div className="action-error" role="alert">
+                      <span>{actionError}</span>
+                      <button
+                        aria-label="Dismiss error"
+                        onClick={() => setActionError("")}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {projectError?.id === active ? (
+                    <div className="welcome-project" role="alert">
+                      <FolderOpen size={32} />
+                      <h2>Project unavailable</h2>
+                      <p className="project-error-message">
+                        {projectError.message}
+                      </p>
+                      <div className="project-error-actions">
+                        <Button onClick={openDialog}>Open folder…</Button>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            void refresh(active).catch(() => undefined)
+                          }
+                        >
+                          Try again
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => closeProjectTab(activeTab)}
+                        >
+                          Close tab
+                        </Button>
+                      </div>
+                    </div>
+                  ) : !historyLoading &&
+                    view === "changes" &&
+                    loadingProject === active &&
+                    !snapshots.current.get(active) &&
+                    !files.length &&
+                    !content ? (
+                    <div className="workspace-loading" role="status">
+                      <Loader2 size={18} className="animate-spin" />
+                      {historyLoading
+                        ? "Loading history…"
+                        : "Loading local changes…"}
+                    </div>
+                  ) : localChanges && !state.files.length && !loadingProject ? (
+                    <div
+                      className="empty-workspace"
+                      aria-label="No local changes"
+                    />
+                  ) : (
+                    <WorkspaceLayout
+                      projectId={active || "preview"}
+                      kind="history"
+                      leading={
+                        showHistory && view === "history" ? (
+                          <section className="history">
+                            <div className="history-heading">
+                              <span>
+                                <GitCommitHorizontal size={14} />
+                                {historyData?.ref && historyData.ref !== "HEAD"
+                                  ? historyData.ref.replace(
+                                      /^refs\/(heads|remotes|tags)\//,
+                                      "",
+                                    )
+                                  : "Commit history"}{" "}
+                                <span className="muted">
+                                  {visibleCommits.length}
+                                  {visibleCommits.length === 150 ? "+" : ""}
+                                </span>
+                              </span>
+                              <button
+                                aria-label="Collapse commit history"
+                                onClick={() => setShowHistory(false)}
+                              >
+                                <ChevronDown size={14} />
+                              </button>
+                            </div>
+                            <CommitHistory
+                              branch={state.branch}
+                              commits={visibleCommits}
+                              selected={selectedCommits}
+                              onSelect={selectCommits}
+                            />
+                          </section>
+                        ) : null
                       }
                     >
-                      Try again
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => closeProjectTab(activeTab)}
-                    >
-                      Close tab
-                    </Button>
-                  </div>
-                </div>
-              ) : !historyLoading &&
-                view === "changes" &&
-                loadingProject === active &&
-                !snapshots.current.get(active) &&
-                !files.length &&
-                !content ? (
-                <div className="workspace-loading" role="status">
-                  <Loader2 size={18} className="animate-spin" />
-                  {historyLoading
-                    ? "Loading history…"
-                    : "Loading local changes…"}
-                </div>
-              ) : localChanges && !state.files.length && !loadingProject ? (
-                <div
-                  className="empty-workspace"
-                  aria-label="No local changes"
-                />
-              ) : (
-                <WorkspaceLayout
-                  projectId={active || "preview"}
-                  kind="history"
-                  leading={
-                    showHistory && view === "history" ? (
-                      <section className="history">
-                        <div className="history-heading">
-                          <span>
-                            <GitCommitHorizontal size={14} />
-                            {historyData?.ref && historyData.ref !== "HEAD"
-                              ? historyData.ref.replace(
-                                  /^refs\/(heads|remotes|tags)\//,
-                                  "",
-                                )
-                              : "Commit history"}{" "}
-                            <span className="muted">
-                              {visibleCommits.length}
-                              {visibleCommits.length === 150 ? "+" : ""}
-                            </span>
-                          </span>
-                          <button
-                            aria-label="Collapse commit history"
-                            onClick={() => setShowHistory(false)}
-                          >
-                            <ChevronDown size={14} />
-                          </button>
+                      {historyLoading && (
+                        <div
+                          className="history-loading-indicator"
+                          role="status"
+                        >
+                          <Loader2 size={12} className="animate-spin" />
+                          Loading history…
                         </div>
-                        <CommitHistory
-                          commits={visibleCommits}
-                          branch={state.branch}
-                          selected={selectedCommits}
-                          onSelect={selectCommits}
-                        />
-                      </section>
-                    ) : null
-                  }
-                >
-                  {historyLoading && (
-                    <div className="history-loading-indicator" role="status">
-                      <Loader2 size={12} className="animate-spin" />
-                      Loading history…
-                    </div>
-                  )}
-                  {view === "history" && (
-                    <div className="workspace-tabs">
-                      <div>
-                        {(["commit", "changes", "tree"] as const).map((tab) => (
-                          <button
-                            key={tab}
-                            className={mode === tab ? "selected" : ""}
-                            onClick={() => setMode(tab)}
-                          >
-                            {tab === "commit"
-                              ? "Commit"
-                              : tab === "changes"
-                                ? "Changes"
-                                : "File Tree"}
-                            {tab === "changes" && <span>{files.length}</span>}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="workspace-options">
-                        {!showHistory && view === "history" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowHistory(true)}
-                          >
-                            <History size={14} />
-                            History
-                          </Button>
+                      )}
+                      {view === "history" && (
+                        <div className="workspace-tabs">
+                          <div>
+                            {(["commit", "changes", "tree"] as const).map(
+                              (tab) => (
+                                <button
+                                  key={tab}
+                                  className={mode === tab ? "selected" : ""}
+                                  onClick={() => setMode(tab)}
+                                >
+                                  {tab === "commit"
+                                    ? "Commit"
+                                    : tab === "changes"
+                                      ? "Changes"
+                                      : "File Tree"}
+                                  {tab === "changes" && (
+                                    <span>{files.length}</span>
+                                  )}
+                                </button>
+                              ),
+                            )}
+                          </div>
+                          <div className="workspace-options">
+                            {!showHistory && view === "history" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowHistory(true)}
+                              >
+                                <History size={14} />
+                                History
+                              </Button>
+                            )}
+                            <span className="diff-stat add">+{additions}</span>
+                            <span className="diff-stat remove">
+                              −{deletions}
+                            </span>
+                            <span className="separator" />
+                            {autoSyncControl}
+                          </div>
+                        </div>
+                      )}
+                      <div className="change-summary">
+                        {historySelection.length > 1 ? (
+                          <>
+                            <GitCommitHorizontal size={16} />
+                            <strong>
+                              {historySelection.length} commits selected
+                            </strong>
+                            <span className="summary-message">
+                              {comparisonBase
+                                ? `${comparisonBase.slice(0, 7)} → ${commit?.slice(0, 7)}`
+                                : "Select two commits to compare"}
+                            </span>
+                          </>
+                        ) : currentCommit ? (
+                          <>
+                            <span className="avatar">
+                              {initials(currentCommit.author)}
+                            </span>
+                            <strong>{currentCommit.author}</strong>
+                            <code>{currentCommit.short}</code>
+                            <span className="summary-message">
+                              {currentCommit.subject}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="working-dot" />
+                            <strong>
+                              {active
+                                ? "Working directory"
+                                : "Choose a project to get started"}
+                            </strong>
+                            <span className="summary-message">
+                              {changedCount
+                                ? `${changedCount} changed file${changedCount !== 1 ? "s" : ""}`
+                                : "No uncommitted changes"}
+                            </span>
+                          </>
                         )}
-                        <span className="diff-stat add">+{additions}</span>
-                        <span className="diff-stat remove">−{deletions}</span>
-                        <span className="separator" />
-                        {autoSyncControl}
+                        {view === "changes" ? (
+                          <div className="local-change-options">
+                            <span className="diff-stat add">+{additions}</span>
+                            <span className="diff-stat remove">
+                              −{deletions}
+                            </span>
+                            {autoSyncControl}
+                          </div>
+                        ) : (
+                          <span className="summary-right">
+                            Committed changes
+                          </span>
+                        )}
                       </div>
-                    </div>
-                  )}
-                  <div className="change-summary">
-                    {historySelection.length > 1 ? (
-                      <>
-                        <GitCommitHorizontal size={16} />
-                        <strong>
-                          {historySelection.length} commits selected
-                        </strong>
-                        <span className="summary-message">
-                          {comparisonBase
-                            ? `${comparisonBase.slice(0, 7)} → ${commit?.slice(0, 7)}`
-                            : "Select two commits to compare"}
-                        </span>
-                      </>
-                    ) : currentCommit ? (
-                      <>
-                        <span className="avatar">
-                          {initials(currentCommit.author)}
-                        </span>
-                        <strong>{currentCommit.author}</strong>
-                        <code>{currentCommit.short}</code>
-                        <span className="summary-message">
-                          {currentCommit.subject}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="working-dot" />
-                        <strong>
-                          {active
-                            ? "Working directory"
-                            : "Choose a project to get started"}
-                        </strong>
-                        <span className="summary-message">
-                          {changedCount
-                            ? `${changedCount} changed file${changedCount !== 1 ? "s" : ""}`
-                            : "No uncommitted changes"}
-                        </span>
-                      </>
-                    )}
-                    {view === "changes" ? (
-                      <div className="local-change-options">
-                        <span className="diff-stat add">+{additions}</span>
-                        <span className="diff-stat remove">−{deletions}</span>
-                        {autoSyncControl}
-                      </div>
-                    ) : (
-                      <span className="summary-right">Committed changes</span>
-                    )}
-                  </div>
-                  {manyCommits || (!connected && !!commit) ? (
-                    <div className="commit-selection-empty">
-                      <GitCommitHorizontal size={40} />
-                      <h2>
-                        {historySelection.length}{" "}
-                        {historySelection.length === 1 ? "commit" : "commits"}{" "}
-                        selected
-                      </h2>
-                      <p>
-                        {connected
-                          ? "Select two commits to see the difference between them."
-                          : "Connect a project to compare real commits."}
-                      </p>
-                      <p className="selection-hint">
-                        Shift-click for a range · ⌘ / Ctrl-click to add or
-                        remove
-                      </p>
-                    </div>
-                  ) : mode === "commit" && comparisonBase ? (
-                    <div className="commit-selection-empty">
-                      <h2>Comparing two commits</h2>
-                      <p>
-                        {comparisonBase.slice(0, 7)} → {commit?.slice(0, 7)}
-                      </p>
-                      <Button
-                        variant="outline"
-                        onClick={() => setMode("changes")}
-                      >
-                        View changed files
-                      </Button>
-                    </div>
-                  ) : mode === "commit" ? (
-                    <div className="commit-details">
-                      <GitCommitHorizontal size={32} />
-                      <h2>{currentCommit?.subject || "Commit your changes"}</h2>
-                      {currentCommit ? (
-                        <>
+                      {manyCommits || (!connected && !!commit) ? (
+                        <div className="commit-selection-empty">
+                          <GitCommitHorizontal size={40} />
+                          <h2>
+                            {historySelection.length}{" "}
+                            {historySelection.length === 1
+                              ? "commit"
+                              : "commits"}{" "}
+                            selected
+                          </h2>
                           <p>
-                            {currentCommit.author} ·{" "}
-                            {new Date(currentCommit.date).toLocaleString()}
+                            {connected
+                              ? "Select two commits to see the difference between them."
+                              : "Connect a project to compare real commits."}
                           </p>
-                          <code>{currentCommit.hash}</code>
+                          <p className="selection-hint">
+                            Shift-click for a range · ⌘ / Ctrl-click to add or
+                            remove
+                          </p>
+                        </div>
+                      ) : mode === "commit" && comparisonBase ? (
+                        <div className="commit-selection-empty">
+                          <h2>Comparing two commits</h2>
+                          <p>
+                            {comparisonBase.slice(0, 7)} → {commit?.slice(0, 7)}
+                          </p>
                           <Button
                             variant="outline"
                             onClick={() => setMode("changes")}
                           >
                             View changed files
                           </Button>
-                        </>
-                      ) : (
-                        <>
-                          <p>
-                            Commit staged changes on{" "}
-                            <strong>{state.branch}</strong>.
-                          </p>
-                          <Button
-                            disabled={
-                              !files.some((file) => file.staged) || !!busy
-                            }
-                            onClick={() =>
-                              actionModal(
-                                "Commit staged changes",
-                                "commit",
-                                [
-                                  {
-                                    key: "name",
-                                    label: "Commit message",
-                                    placeholder: "Describe your changes",
-                                  },
-                                ],
-                                {},
-                                "Only staged changes will be included in this commit.",
-                              )
-                            }
-                          >
-                            Commit changes…
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <WorkspaceLayout
-                      projectId={active || "preview"}
-                      kind="files"
-                      leading={
-                        <aside className="files-pane">
-                          <div className="file-filter">
-                            <Search size={13} />
-                            <input
-                              placeholder="Filter files…"
-                              aria-label="Filter files"
-                              value={filter}
-                              onChange={(e) => setFilter(e.target.value)}
-                            />
-                            <span>{files.length}</span>
-                          </div>
-                          {localChanges ? (
-                            <StagingTree
-                              projectId={active || "preview"}
-                              projectPath={state.project.path}
-                              onError={setActionError}
-                              files={files}
-                              selected={selected}
-                              layer={stageLayer}
-                              filter={filter}
-                              busy={!!busy || !connected}
-                              loading={
-                                loadingLocalProject ||
-                                loadedFilesContext !== filesContext
-                              }
-                              treeStateId={sidebarId}
-                              onSelect={(path, layer) => {
-                                setStageLayer(layer);
-                                selectFile(path);
-                              }}
-                              onStage={(path, layer) =>
-                                run(layer === "staged" ? "unstage" : "stage", {
-                                  path,
-                                })
-                              }
-                            />
+                        </div>
+                      ) : mode === "commit" ? (
+                        <div className="commit-details">
+                          <GitCommitHorizontal size={32} />
+                          <h2>
+                            {currentCommit?.subject || "Commit your changes"}
+                          </h2>
+                          {currentCommit ? (
+                            <>
+                              <p>
+                                {currentCommit.author} ·{" "}
+                                {new Date(currentCommit.date).toLocaleString()}
+                              </p>
+                              <code>{currentCommit.hash}</code>
+                              <Button
+                                variant="outline"
+                                onClick={() => setMode("changes")}
+                              >
+                                View changed files
+                              </Button>
+                            </>
                           ) : (
-                            <div className="files-scroll">
-                              <FileTree
-                                projectId={sidebarId}
-                                files={files}
-                                selected={selected}
-                                onSelect={selectFile}
-                                filter={filter}
-                              />
-                              {!files.length && (
-                                <div className="files-empty">
-                                  {connected
-                                    ? "No changed files"
-                                    : "Connect a repository"}
+                            <>
+                              <p>
+                                Commit staged changes on{" "}
+                                <strong>{state.branch}</strong>.
+                              </p>
+                              <Button
+                                disabled={
+                                  !files.some((file) => file.staged) || !!busy
+                                }
+                                onClick={() =>
+                                  actionModal(
+                                    "Commit staged changes",
+                                    "commit",
+                                    [
+                                      {
+                                        key: "name",
+                                        label: "Commit message",
+                                        placeholder: "Describe your changes",
+                                      },
+                                    ],
+                                    {},
+                                    "Only staged changes will be included in this commit.",
+                                  )
+                                }
+                              >
+                                Commit changes…
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <WorkspaceLayout
+                          projectId={active || "preview"}
+                          kind="files"
+                          leading={
+                            <aside className="files-pane">
+                              <div className="file-filter">
+                                <Search size={13} />
+                                <input
+                                  placeholder="Filter files…"
+                                  aria-label="Filter files"
+                                  value={filter}
+                                  onChange={(e) => setFilter(e.target.value)}
+                                />
+                                <span>{files.length}</span>
+                              </div>
+                              {localChanges ? (
+                                <StagingTree
+                                  projectId={active || "preview"}
+                                  projectPath={state.project.path}
+                                  onError={setActionError}
+                                  files={files}
+                                  selected={selected}
+                                  layer={stageLayer}
+                                  filter={filter}
+                                  busy={!!busy || !connected}
+                                  loading={
+                                    loadingLocalProject ||
+                                    loadedFilesContext !== filesContext
+                                  }
+                                  treeStateId={sidebarId}
+                                  onSelect={(path, layer) => {
+                                    setStageLayer(layer);
+                                    selectFile(path);
+                                  }}
+                                  onStage={(path, layer) =>
+                                    run(
+                                      layer === "staged" ? "unstage" : "stage",
+                                      {
+                                        path,
+                                      },
+                                    )
+                                  }
+                                />
+                              ) : (
+                                <div className="files-scroll">
+                                  <FileTree
+                                    projectId={sidebarId}
+                                    files={files}
+                                    selected={selected}
+                                    onSelect={selectFile}
+                                    filter={filter}
+                                  />
+                                  {!files.length && (
+                                    <div className="files-empty">
+                                      {connected
+                                        ? "No changed files"
+                                        : "Connect a repository"}
+                                    </div>
+                                  )}
                                 </div>
+                              )}
+                              <div className="files-footer">
+                                <Folder size={12} />
+                                {mode === "tree"
+                                  ? "All files"
+                                  : "Changed files"}
+                                <span>
+                                  {files.filter((f) => f.staged).length} staged
+                                </span>
+                              </div>
+                            </aside>
+                          }
+                        >
+                          {connected && !active ? (
+                            <div className="welcome-project">
+                              <FolderOpen size={32} />
+                              <h2>Open a project</h2>
+                              <p>
+                                Choose a folder on your Mac to review its
+                                changes.
+                              </p>
+                              <Button onClick={openDialog}>
+                                Choose folder
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="diff-workspace">
+                              <DiffPane
+                                content={content}
+                                loading={
+                                  fileLoading ||
+                                  historyLoading ||
+                                  loadedFilesContext !== filesContext
+                                }
+                                full={full}
+                                setFull={setFull}
+                                split={split}
+                                setSplit={setSplit}
+                                fileMode={mode === "tree"}
+                                onResolve={(value) =>
+                                  actionModal(
+                                    "Save conflict resolution",
+                                    "resolve",
+                                    [],
+                                    { path: selected, content: value },
+                                    "Write your resolution to disk and stage this file.",
+                                  )
+                                }
+                              />
+                              {localChanges && (
+                                <CommitForm
+                                  projectId={active}
+                                  loading={
+                                    loadingLocalProject ||
+                                    loadedFilesContext !== filesContext
+                                  }
+                                  count={
+                                    files.filter((file) => file.staged).length
+                                  }
+                                  busy={!!busy || !connected}
+                                  onCommit={(message) =>
+                                    action("commit", { name: message })
+                                  }
+                                />
                               )}
                             </div>
                           )}
-                          <div className="files-footer">
-                            <Folder size={12} />
-                            {mode === "tree" ? "All files" : "Changed files"}
-                            <span>
-                              {files.filter((f) => f.staged).length} staged
-                            </span>
-                          </div>
-                        </aside>
-                      }
-                    >
-                      {connected && !active ? (
-                        <div className="welcome-project">
-                          <FolderOpen size={32} />
-                          <h2>Open a project</h2>
-                          <p>
-                            Choose a folder on your Mac to review its changes.
-                          </p>
-                          <Button onClick={openDialog}>Choose folder</Button>
-                        </div>
-                      ) : (
-                        <div className="diff-workspace">
-                          <DiffPane
-                            content={content}
-                            loading={
-                              fileLoading ||
-                              historyLoading ||
-                              loadedFilesContext !== filesContext
-                            }
-                            full={full}
-                            setFull={setFull}
-                            split={split}
-                            setSplit={setSplit}
-                            fileMode={mode === "tree"}
-                            onResolve={(value) =>
-                              actionModal(
-                                "Save conflict resolution",
-                                "resolve",
-                                [],
-                                { path: selected, content: value },
-                                "Write your resolution to disk and stage this file.",
-                              )
-                            }
-                          />
-                          {localChanges && (
-                            <CommitForm
-                              projectId={active}
-                              loading={
-                                loadingLocalProject ||
-                                loadedFilesContext !== filesContext
-                              }
-                              count={files.filter((file) => file.staged).length}
-                              busy={!!busy || !connected}
-                              onCommit={(message) =>
-                                action("commit", { name: message })
-                              }
-                            />
-                          )}
-                        </div>
+                        </WorkspaceLayout>
                       )}
                     </WorkspaceLayout>
                   )}
-                </WorkspaceLayout>
-              )}
+                </div>
+                {chatOpen && (
+                  <div
+                    className="chat-resizer"
+                    role="separator"
+                    aria-label="Resize chat panel"
+                    aria-orientation="vertical"
+                    aria-valuenow={chatWidth}
+                    aria-valuemin={320}
+                    aria-valuemax={800}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight")
+                        return;
+                      e.preventDefault();
+                      const width = Math.max(
+                        320,
+                        Math.min(
+                          800,
+                          chatWidth + (e.key === "ArrowLeft" ? 20 : -20),
+                        ),
+                      );
+                      setChatWidth(width);
+                      localStorage.setItem("donkey-chat-width", String(width));
+                    }}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                    }}
+                    onPointerMove={(e) => {
+                      if (!e.currentTarget.hasPointerCapture(e.pointerId))
+                        return;
+                      const right =
+                        e.currentTarget.parentElement!.getBoundingClientRect()
+                          .right;
+                      const width = Math.round(
+                        Math.max(320, Math.min(800, right - e.clientX)),
+                      );
+                      setChatWidth(width);
+                      localStorage.setItem("donkey-chat-width", String(width));
+                    }}
+                    onPointerUp={(e) =>
+                      e.currentTarget.releasePointerCapture(e.pointerId)
+                    }
+                  />
+                )}
+                {chatStarted && (
+                  <ChatPanel
+                    key={active || "preview"}
+                    project={
+                      projects.find((p) => p.id === active) || state.project
+                    }
+                    connected={connected && !!active}
+                    open={chatOpen}
+                    onClose={() => setChatOpen(false)}
+                    onComplete={(id) => {
+                      void refresh(id).catch(() => undefined);
+                    }}
+                    onRunning={setChatRunning}
+                  />
+                )}
+              </div>
             </main>
           </WorkspaceLayout>
         )}
