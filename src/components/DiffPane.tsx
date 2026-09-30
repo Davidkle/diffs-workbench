@@ -172,9 +172,7 @@ export function DiffPane({
           </div>
         ) : !content ? (
           <div className="empty">
-            <Check size={32} />
-            <h3>All clear</h3>
-            <p>Select a commit or open a file to explore your code.</p>
+            <p>Select a file to view changes.</p>
           </div>
         ) : content.binary ? (
           <div className="empty">

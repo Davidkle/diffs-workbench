@@ -151,6 +151,22 @@ function TreeNode({
     <div
       className={`tree-row ${selected === node.path ? "selected" : ""}`}
       style={{ paddingLeft: isFolder ? 0 : 12 + depth * 16 }}
+      onKeyDown={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          !isFolder ||
+          (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+        )
+          return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        if (!filtering) setOpen(event.key === "ArrowRight");
+      }}
     >
       {isFolder && (
         <button
