@@ -1,8 +1,12 @@
-# Diffs Workbench
+# Donkey Diff
 
 An open-source, local-first Git workbench with a desktop-style interface. Review code with [Pierre's Diffs](https://diffs.com), switch between projects, and manage your local Git workflow in a Mac app or browser.
 
-**[Download for Mac](https://github.com/Davidkle/diffs-workbench/releases/latest)** · [Web preview](https://diffs-workbench.vercel.app) · [MIT license](LICENSE)
+**[Download for Mac](https://github.com/DonkeyCut/donkey-diff/releases/latest)** · [Website](https://donkeycut.github.io/donkey-diff/) · [Web preview](https://diffs-workbench.vercel.app) · [MIT license](LICENSE)
+
+[![Watch the Donkey Diff demo](docs/poster.jpg)](https://donkeycut.github.io/donkey-diff/)
+
+[Watch the video](https://donkeycut.github.io/donkey-diff/demo.mp4)
 
 ## Get started on Mac
 
