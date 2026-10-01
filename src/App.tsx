@@ -1164,7 +1164,9 @@ export function App() {
                   aria-pressed={p.id === activeTab || !connected}
                   aria-label={label}
                   aria-describedby={
-                    count !== undefined ? `tab-count-${p.id}` : undefined
+                    count !== undefined && count > 0
+                      ? `tab-count-${p.id}`
+                      : undefined
                   }
                   title={p.path}
                   onClick={() => openProject(p.id)}
@@ -1180,7 +1182,7 @@ export function App() {
                       </span>
                     )}
                   </span>
-                  {count !== undefined && (
+                  {count !== undefined && count > 0 && (
                     <span
                       id={`tab-count-${p.id}`}
                       className="tab-count"
