@@ -143,8 +143,18 @@ test("worktree and ref switches preserve chrome, scroll and cached diffs while r
   page,
 }) => {
   const projects = [
-    { id: "1111111111111111", name: "main", path: "/repo/main" },
-    { id: "2222222222222222", name: "feature", path: "/repo/feature" },
+    {
+      id: "1111111111111111",
+      name: "main",
+      path: "/repo/main",
+      isWorktree: false,
+    },
+    {
+      id: "2222222222222222",
+      name: "feature",
+      path: "/repo/feature",
+      isWorktree: true,
+    },
   ];
   const makeCommit = (hash: string, subject: string) => ({
     hash: hash.repeat(40),
@@ -247,6 +257,19 @@ test("worktree and ref switches preserve chrome, scroll and cached diffs while r
     });
   });
   await page.goto(origin);
+  await page
+    .getByRole("button", { name: "Open project tab", exact: true })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: "main", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { name: "feature", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("menuitem", { name: "Open repository…", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "All Commits", exact: true }).click();
   await expect(page.locator(".diff-toolbar")).toContainText("main.txt");
   await expect(page.locator(".diff-pane")).toHaveAttribute(
@@ -299,6 +322,16 @@ test("worktree and ref switches preserve chrome, scroll and cached diffs while r
   ).toBeAttached();
   releaseTree();
   await expect(page.locator(".diff-toolbar")).toContainText("feature.txt");
+  await page
+    .getByRole("button", { name: "Open project tab", exact: true })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: "main", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { name: "feature", exact: true }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await expect(page.locator(".diff-pane")).toHaveAttribute(
     "aria-busy",
     "false",

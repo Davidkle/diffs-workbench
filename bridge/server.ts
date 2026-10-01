@@ -13,6 +13,7 @@ import { z } from "zod";
 import {
   git,
   validateRepo,
+  isLinkedWorktree,
   snapshot,
   commitHistory,
   changedFiles,
@@ -44,6 +45,17 @@ try {
 } catch {
   /* first launch */
 }
+// Inspect saved checkouts too: older project lists include linked worktrees.
+await Promise.all(
+  projects.map(async (project) => {
+    try {
+      project.isWorktree = await isLinkedWorktree(project.path);
+    } catch {
+      // Keep unavailable checkouts addressable, but out of the repository picker.
+      delete project.isWorktree;
+    }
+  }),
+);
 async function save() {
   await writeFile(statePath, JSON.stringify(projects, null, 2), {
     mode: 0o600,
@@ -51,15 +63,19 @@ async function save() {
 }
 async function addProject(input: string) {
   const root = await validateRepo(input);
+  const isWorktree = await isLinkedWorktree(root);
   let project = projects.find((p) => p.path === root);
   if (!project) {
     project = {
       id: createHash("sha256").update(root).digest("hex").slice(0, 16),
       name: path.basename(root),
       path: root,
+      isWorktree,
     };
     projects.push(project);
     await save();
+  } else {
+    project.isWorktree = isWorktree;
   }
   return project;
 }

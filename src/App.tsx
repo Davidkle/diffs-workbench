@@ -1211,11 +1211,13 @@ export function App() {
                 </button>
               }
               items={[
-                ...projects.map((p) => ({
-                  label: p.name,
-                  icon: <Folder size={16} />,
-                  onSelect: () => openProject(p.id),
-                })),
+                ...projects
+                  .filter((p) => p.isWorktree === false)
+                  .map((p) => ({
+                    label: p.name,
+                    icon: <Folder size={16} />,
+                    onSelect: () => openProject(p.id),
+                  })),
                 {
                   label: "Open repository…",
                   icon: <FolderOpen size={16} />,

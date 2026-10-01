@@ -1,4 +1,10 @@
-export type Project = { id: string; name: string; path: string };
+export type Project = {
+  id: string;
+  name: string;
+  path: string;
+  /** Undefined when the checkout could not be inspected. */
+  isWorktree?: boolean;
+};
 export type ChangedFile = {
   path: string;
   oldPath?: string;

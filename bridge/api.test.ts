@@ -11,9 +11,20 @@ import {
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { createServer } from "node:net";
 import { git } from "./git.js";
 
 test("authenticated bridge supports branch, stash, worktree and remote workflows", async () => {
+  const listener = createServer();
+  await new Promise<void>((resolve) =>
+    listener.listen(0, "127.0.0.1", resolve),
+  );
+  const address = listener.address();
+  assert.ok(address && typeof address !== "string");
+  const port = address.port;
+  await new Promise<void>((resolve, reject) =>
+    listener.close((error) => (error ? reject(error) : resolve())),
+  );
   const tmp = await mkdtemp(path.join(os.tmpdir(), "donkey-diff-api-"));
   const repo = path.join(tmp, "repo");
   const data = path.join(tmp, "data");
@@ -27,6 +38,21 @@ test("authenticated bridge supports branch, stash, worktree and remote workflows
   await git(tmp, ["init", "--bare", remote]);
   await git(repo, ["remote", "add", "origin", remote]);
   await git(repo, ["push", "-u", "origin", "main"]);
+  const savedTree = path.join(tmp, "saved-worktree");
+  await git(repo, ["worktree", "add", "-b", "saved", savedTree]);
+  await mkdir(data);
+  // Existing installations saved both repositories and worktrees without metadata.
+  await writeFile(
+    path.join(data, "projects.json"),
+    JSON.stringify([
+      { id: "1111111111111111", name: "repo", path: await realpath(repo) },
+      {
+        id: "2222222222222222",
+        name: "saved-worktree",
+        path: await realpath(savedTree),
+      },
+    ]),
+  );
   const agent = path.join(tmp, "fake-claude");
   await writeFile(
     agent,
@@ -43,7 +69,7 @@ setInterval(() => {}, 1000);
       cwd: process.cwd(),
       env: {
         ...process.env,
-        DONKEY_DIFF_PORT: "43128",
+        DONKEY_DIFF_PORT: String(port),
         DONKEY_DIFF_DATA_DIR: data,
         DONKEY_DIFF_CLAUDE_BIN: agent,
       },
@@ -70,7 +96,7 @@ setInterval(() => {}, 1000);
       });
     });
     const token = (await readFile(path.join(data, "token"), "utf8")).trim();
-    const base = "http://127.0.0.1:43128";
+    const base = `http://127.0.0.1:${port}`;
     assert.equal((await fetch(`${base}/projects`)).status, 401);
     assert.equal(
       (
@@ -106,8 +132,14 @@ setInterval(() => {}, 1000);
       return result;
     }
     const projects = await api("/projects");
-    assert.equal(projects.length, 1);
+    assert.equal(projects.length, 2);
+    assert.equal(projects[0].isWorktree, false);
+    assert.equal(projects[1].isWorktree, true);
     const id = projects[0].id;
+    await api(`/projects/${id}/action`, {
+      action: "worktree-remove",
+      from: savedTree,
+    });
     assert.equal((await fetch(`${base}/projects/${id}/chat`)).status, 401);
     assert.deepEqual(await api(`/projects/${id}/chat`), {
       sessions: [],
@@ -279,6 +311,7 @@ setInterval(() => {}, 1000);
     await action("worktree-create", { name: "tree", path: tree });
     assert.equal((await api(`/projects/${id}`)).worktrees.length, 2);
     const linked = await api("/projects", { path: tree });
+    assert.equal(linked.isWorktree, true);
     const linkedAction = (action: string, input: Record<string, string>) =>
       api(`/projects/${linked.id}/action`, { action, ...input });
     const checkChatGuard = async (source: string, destination: string) => {

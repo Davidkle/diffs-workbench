@@ -67,6 +67,22 @@ export async function validateRepo(root: string) {
   const resolved = await realpath(root);
   return (await git(resolved, ["rev-parse", "--show-toplevel"])).trim();
 }
+export async function isLinkedWorktree(root: string) {
+  const directories = (
+    await git(root, [
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-dir",
+      "--git-common-dir",
+    ])
+  )
+    .trim()
+    .split("\n");
+  const [gitDir, commonDir] = await Promise.all(
+    directories.map((dir) => realpath(dir)),
+  );
+  return gitDir !== commonDir;
+}
 export function parseStatus(raw: string): ChangedFile[] {
   const entries = raw.split("\0");
   const files: ChangedFile[] = [];
