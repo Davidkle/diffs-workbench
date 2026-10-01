@@ -1944,7 +1944,9 @@ export function App() {
                         ? "Loading history…"
                         : "Loading local changes…"}
                     </div>
-                  ) : localChanges && !state.files.length && !loadingProject ? (
+                  ) : localChanges &&
+                    !state.files.length &&
+                    !loadingLocalProject ? (
                     <div
                       className="empty-workspace"
                       aria-label="No local changes"

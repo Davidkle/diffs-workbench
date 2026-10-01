@@ -69,18 +69,20 @@ const snapshot = (index: number) => ({
   behind: 0,
 });
 
-async function fixture(page: Page, registerOnDemand = false) {
+async function fixture(page: Page, registerOnDemand = false, empty = false) {
   const errors: string[] = [];
   const writes: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => {
+  await page.addInitScript((empty) => {
     sessionStorage.setItem("donkey-diff-token", "test");
     localStorage.setItem("donkey-diff-auto-sync", "false");
     localStorage.setItem(
       "donkey-diff-tabs",
-      JSON.stringify(["1111111111111111"]),
+      JSON.stringify(
+        empty ? ["1111111111111111", "2222222222222222"] : ["1111111111111111"],
+      ),
     );
-  });
+  }, empty);
   let sequence = 0;
   await page.route("http://127.0.0.1:43127/**", async (route) => {
     const request = route.request();
@@ -101,7 +103,7 @@ async function fixture(page: Page, registerOnDemand = false) {
       0,
       projects.findIndex((p) => url.pathname.includes(p.id)),
     );
-    let data: unknown = snapshot(index);
+    let data: unknown = { ...snapshot(index), files: empty ? [] : files };
     if (url.pathname === "/projects") {
       if (request.method() === "POST") {
         const selected = projects.find(
@@ -124,7 +126,7 @@ async function fixture(page: Page, registerOnDemand = false) {
       const offset =
         ref === "HEAD" ? index : Number(ref.match(/(\d+)\D*$/)?.[1] || 0);
       data = Array.from({ length: 150 }, (_, i) => commit(offset + i));
-    } else if (url.pathname.endsWith("/files")) data = files;
+    } else if (url.pathname.endsWith("/files")) data = empty ? [] : files;
     else if (url.pathname.endsWith("/tree")) data = files.map((f) => f.path);
     else if (url.pathname.endsWith("/file")) {
       const path = url.searchParams.get("path") || "";
@@ -158,6 +160,45 @@ async function fixture(page: Page, registerOnDemand = false) {
   await expect(page.locator(".project-heading")).toHaveText("donkey");
   return { errors, writes };
 }
+
+test("cached empty project tabs stay empty throughout background refresh", async ({
+  page,
+}) => {
+  await fixture(page, false, true);
+  const tabs = page.locator(".tab-select");
+  await expect(page.locator(".empty-workspace")).toBeVisible();
+  await tabs.nth(1).click();
+  await expect(page.locator(".project-heading")).toHaveText("tree1");
+  await expect(page.locator(".empty-workspace")).toBeVisible();
+  // Wait for the first snapshot so both tabs have a cached empty state.
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    const violations: string[] = [];
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector(".empty-workspace"))
+        violations.push("empty workspace disappeared");
+    });
+    observer.observe(document.querySelector(".app-shell")!, {
+      subtree: true,
+      childList: true,
+    });
+    Object.assign(window, { emptyTabAudit: { violations, observer } });
+  });
+  for (const index of [0, 1, 0, 1]) {
+    await tabs.nth(index).click();
+    await page.waitForTimeout(150);
+  }
+  const violations = await page.evaluate(() => {
+    const audit = (
+      window as unknown as {
+        emptyTabAudit: { violations: string[]; observer: MutationObserver };
+      }
+    ).emptyTabAudit;
+    audit.observer.disconnect();
+    return audit.violations;
+  });
+  expect(violations).toEqual([]);
+});
 
 type Audit = { frames: number; violations: string[]; stop: () => void };
 async function auditChrome(page: Page, selectors: string[]) {
