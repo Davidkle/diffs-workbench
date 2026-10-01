@@ -55,6 +55,7 @@ import {
 import { usePersistentBoolean } from "@/use-persistent-boolean";
 import { ProjectCache } from "@/project-cache";
 import { worktreeNavigation } from "@/sidebar-state";
+import { tabShortcutIndex } from "@/tab-shortcuts";
 import { demo, demoContent } from "@/demo";
 import type {
   Action,
@@ -938,6 +939,30 @@ export function App() {
     }
     setMobileNav(false);
   };
+  const tabShortcutRef = useRef<(event: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    tabShortcutRef.current = (event) => {
+      if (!connected || event.defaultPrevented) return;
+      const tabs = projects.filter((project) => openIds.includes(project.id));
+      const isMac = window.donkeyDiffDesktop
+        ? window.donkeyDiffDesktop.platform === "darwin"
+        : /Mac|iPhone|iPad/.test(navigator.platform);
+      const index = tabShortcutIndex(
+        event,
+        isMac,
+        tabs.findIndex((project) => project.id === activeTab),
+        tabs.length,
+      );
+      if (index === undefined) return;
+      event.preventDefault();
+      openProject(tabs[index].id);
+    };
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => tabShortcutRef.current(event);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const closeProjectTab = (id: string) => {
     const remaining = openIds.filter((tab) => tab !== id);
     setOpenIds(remaining);
