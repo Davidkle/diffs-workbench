@@ -122,7 +122,11 @@ export function ChatPanel({
   const running = state.sessions.find((s) => s.status === "running");
   const activeProvider = provider ?? selected?.provider ?? "codex";
   const info = providers.find((p) => p.id === activeProvider);
-  const chosenModel = model ?? selected?.model ?? "";
+  const chosenModel =
+    (model ?? selected?.model) ||
+    info?.defaultModel ||
+    info?.models[0]?.id ||
+    "";
   const chosenEffort = effort ?? selected?.effort ?? "";
   const canSend =
     connected &&

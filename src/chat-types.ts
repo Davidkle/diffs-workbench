@@ -1,11 +1,18 @@
 export type ChatProvider = "codex" | "claude";
-export type ChatModel = { id: string; name: string; efforts: string[] };
+export type ChatModel = {
+  id: string;
+  name: string;
+  efforts: string[];
+  defaultEffort?: string;
+};
 export type ChatProviderInfo = {
   id: ChatProvider;
   name: string;
   available: boolean;
   error?: string;
   models: ChatModel[];
+  defaultModel?: string;
+  defaultEffort?: string;
 };
 export type ChatSkill = {
   id: string;

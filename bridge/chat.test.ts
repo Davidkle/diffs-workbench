@@ -13,7 +13,99 @@ import path from "node:path";
 import os from "node:os";
 import { ChatService } from "./chat.js";
 import { discoverSkills, expandSkill } from "./chat-skills.js";
-import { codexUpdate, claudeUpdate } from "./agent-process.js";
+import {
+  agentExecutableCandidates,
+  codexModels,
+  claudeModels,
+  codexUpdate,
+  claudeUpdate,
+} from "./agent-process.js";
+
+test("Codex discovery prefers the desktop runtime, respects overrides and retains CLI fallback", () => {
+  const env = { PATH: "/old-cli/bin:/usr/bin" };
+  const desktop = agentExecutableCandidates(
+    "codex",
+    env,
+    "darwin",
+    "/Users/test",
+  );
+  assert.equal(
+    desktop[0],
+    "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+  );
+  assert.ok(
+    desktop.indexOf("/old-cli/bin/codex") >
+      desktop.indexOf(
+        "/Users/test/Applications/Codex.app/Contents/Resources/codex",
+      ),
+  );
+  assert.deepEqual(
+    agentExecutableCandidates(
+      "codex",
+      { ...env, DONKEY_DIFF_CODEX_BIN: "/custom/codex" },
+      "darwin",
+    ),
+    ["/custom/codex"],
+  );
+  assert.equal(
+    agentExecutableCandidates("codex", env, "linux")[0],
+    "/old-cli/bin/codex",
+  );
+  assert.equal(
+    agentExecutableCandidates("claude", env, "darwin")[0],
+    "/old-cli/bin/claude",
+  );
+});
+
+test("model discovery resolves the configured Codex model and Claude default alias to model names", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "diffs-models-"));
+  const bin = path.join(root, "agent");
+  try {
+    await writeFile(
+      bin,
+      `#!/usr/bin/env node
+const { createInterface } = require('node:readline');
+const { realpathSync } = require('node:fs');
+const send = v => process.stdout.write(JSON.stringify(v)+'\\n');
+createInterface({input:process.stdin}).on('line', line => {
+ const m=JSON.parse(line);
+ if(m.method==='initialize') send({id:m.id,result:{}});
+ if(m.method==='model/list') send({id:m.id,result:{data:[
+  {model:'gpt-6-astra',displayName:'GPT-6 Astra',isDefault:true},
+  {model:'gpt-6.1-sol',displayName:'GPT-6.1 Sol',defaultReasoningEffort:'medium',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'high'}]}
+ ]}});
+ if(m.method==='config/read') {
+  if(realpathSync(m.params.cwd)!==process.cwd()) process.exit(1);
+  send({id:m.id,result:{config:{model:'gpt-6.1-sol',model_reasoning_effort:'low'}}});
+ }
+ if(m.type==='control_request') send({type:'control_response',response:{request_id:'models',subtype:'success',response:{models:[
+  {value:'default',resolvedModel:'claude-opus-5-5',displayName:'Default'},
+  {value:'sonnet',resolvedModel:'claude-sonnet-5-5',displayName:'Sonnet 5.5'},
+  {value:'opus',resolvedModel:'claude-opus-5-5',displayName:'Opus 5.5'}
+ ]}}});
+});
+`,
+      { mode: 0o755 },
+    );
+    const codex = await codexModels(bin, root);
+    assert.equal(codex.defaultModel, "gpt-6.1-sol");
+    assert.equal(codex.defaultEffort, "low");
+    assert.equal(codex.models[1].name, "GPT-6.1 Sol");
+    assert.deepEqual(codex.models[1].efforts, ["low", "high"]);
+    const claude = await claudeModels(bin, root);
+    assert.equal(claude.defaultModel, "opus");
+    assert.equal(
+      claude.models.find((m) => m.id === "opus")?.name,
+      "Claude Opus 5.5",
+    );
+    assert.equal(
+      claude.models.some((m) => m.id === "default"),
+      false,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("repository skills discover, match spaced slash names, and reject external files", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "diffs-skills-"));
@@ -120,7 +212,7 @@ createInterface({ input:process.stdin }).on('line', (line) => {
  if (m.method === 'initialize') return send({ id:m.id,result:{} });
  if (m.method === 'thread/start' || m.method === 'thread/resume') {
   fs.appendFileSync('requests.jsonl',JSON.stringify(m)+'\\n');
-  return send({id:m.id,result:{thread:{id:'thread-fixture'}}});
+  return send({id:m.id,result:{thread:{id:'thread-fixture'},model:'gpt-6.1-sol'}});
  }
  if (m.method === 'turn/interrupt') { fs.appendFileSync('requests.jsonl',JSON.stringify(m)+'\\n'); return send({id:m.id,result:{}}); }
  if (m.method === 'turn/start') {
@@ -156,6 +248,7 @@ createInterface({ input:process.stdin }).on('line', (line) => {
       new RegExp(root),
     );
     assert.equal("engineSessionId" in state.sessions[0], false);
+    assert.equal(state.sessions[0].model, "gpt-6.1-sol");
     await service.send(project, { ...input, sessionId: first.sessionId });
     await until(
       async () => (await service.state(project)).sessions[0].status === "idle",

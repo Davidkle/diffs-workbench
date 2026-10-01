@@ -11,22 +11,41 @@ export const record = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 const str = (value: unknown) => (typeof value === "string" ? value : "");
-export async function agentExecutable(provider: ChatProvider) {
+export function agentExecutableCandidates(
+  provider: ChatProvider,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  home = os.homedir(),
+) {
   const override =
-    process.env[
+    env[
       provider === "codex" ? "DONKEY_DIFF_CODEX_BIN" : "DONKEY_DIFF_CLAUDE_BIN"
     ];
-  const candidates = override
-    ? [override]
-    : [
-        ...(process.env.PATH || "")
-          .split(path.delimiter)
-          .filter(Boolean)
-          .map((p) => path.join(p, provider)),
-        path.join(os.homedir(), ".local/bin", provider),
-        `/opt/homebrew/bin/${provider}`,
-        `/usr/local/bin/${provider}`,
-      ];
+  if (override) return [override];
+  // Use the desktop app's runtime and model support when it is installed.
+  const desktop =
+    provider === "codex" && platform === "darwin"
+      ? ["/Applications", path.join(home, "Applications")].flatMap((folder) => [
+          path.join(
+            folder,
+            "ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+          ),
+          path.join(folder, "Codex.app/Contents/Resources/codex"),
+        ])
+      : [];
+  return [
+    ...desktop,
+    ...(env.PATH || "")
+      .split(path.delimiter)
+      .filter(Boolean)
+      .map((p) => path.join(p, provider)),
+    path.join(home, ".local/bin", provider),
+    `/opt/homebrew/bin/${provider}`,
+    `/usr/local/bin/${provider}`,
+  ];
+}
+export async function agentExecutable(provider: ChatProvider) {
+  const candidates = agentExecutableCandidates(provider);
   for (const candidate of candidates) {
     if (!path.isAbsolute(candidate)) continue;
     try {
@@ -37,7 +56,7 @@ export async function agentExecutable(provider: ChatProvider) {
     }
   }
   throw new Error(
-    `Install ${provider === "codex" ? "Codex CLI" : "Claude Code"} and sign in, then retry. A custom executable can be set with DONKEY_DIFF_${provider.toUpperCase()}_BIN.`,
+    `Install ${provider === "codex" ? "the Codex desktop app" : "Claude Code"} and sign in, then retry. A custom executable can be set with DONKEY_DIFF_${provider.toUpperCase()}_BIN.`,
   );
 }
 
@@ -195,7 +214,11 @@ export class AgentProcess {
 export async function codexModels(
   executable: string,
   cwd: string,
-): Promise<ChatModel[]> {
+): Promise<{
+  models: ChatModel[];
+  defaultModel: string;
+  defaultEffort: string;
+}> {
   const agent = new AgentProcess(
     executable,
     ["app-server", "--listen", "stdio://"],
@@ -204,12 +227,17 @@ export async function codexModels(
   try {
     await agent.initialize();
     const result = record(await agent.request("model/list", { limit: 100 }));
-    return (Array.isArray(result.data) ? result.data : [])
+    const config = record(
+      record(await agent.request("config/read", { cwd })).config,
+    );
+    const data = (Array.isArray(result.data) ? result.data : []).map(record);
+    const models: ChatModel[] = data
       .map((value) => {
         const m = record(value);
         return {
           id: str(m.model || m.id),
           name: str(m.displayName || m.model),
+          defaultEffort: str(m.defaultReasoningEffort),
           efforts: (Array.isArray(m.supportedReasoningEfforts)
             ? m.supportedReasoningEfforts
             : []
@@ -219,6 +247,19 @@ export async function codexModels(
         };
       })
       .filter((m) => m.id);
+    const defaultModel =
+      str(config.model) ||
+      str(data.find((m) => m.isDefault)?.model) ||
+      models[0]?.id ||
+      "";
+    // Configured custom models may be absent from the bundled catalog.
+    if (defaultModel && !models.some((m) => m.id === defaultModel))
+      models.unshift({ id: defaultModel, name: defaultModel, efforts: [] });
+    return {
+      models,
+      defaultModel,
+      defaultEffort: str(config.model_reasoning_effort),
+    };
   } finally {
     await agent.close();
   }
@@ -327,7 +368,7 @@ export function claudeUpdate(message: Record<string, unknown>): AgentUpdate {
 export async function claudeModels(
   executable: string,
   cwd: string,
-): Promise<ChatModel[]> {
+): Promise<{ models: ChatModel[]; defaultModel: string }> {
   const agent = new AgentProcess(
     executable,
     [
@@ -341,30 +382,32 @@ export async function claudeModels(
     cwd,
   );
   try {
-    return await new Promise<ChatModel[]>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("Claude model discovery timed out")),
-        30000,
-      );
-      agent.onExit = (error) => {
-        clearTimeout(timer);
-        reject(error);
-      };
-      agent.onEvent = (event) => {
-        if (event.type !== "control_response") return;
-        const response = record(event.response);
-        if (response.request_id !== "models") return;
-        clearTimeout(timer);
-        if (response.subtype !== "success") {
-          reject(
-            new Error(str(response.error) || "Could not load Claude models"),
+    return await new Promise<{ models: ChatModel[]; defaultModel: string }>(
+      (resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Claude model discovery timed out")),
+          30000,
+        );
+        agent.onExit = (error) => {
+          clearTimeout(timer);
+          reject(error);
+        };
+        agent.onEvent = (event) => {
+          if (event.type !== "control_response") return;
+          const response = record(event.response);
+          if (response.request_id !== "models") return;
+          clearTimeout(timer);
+          if (response.subtype !== "success") {
+            reject(
+              new Error(str(response.error) || "Could not load Claude models"),
+            );
+            return;
+          }
+          const data = record(response.response);
+          const catalog = (Array.isArray(data.models) ? data.models : []).map(
+            record,
           );
-          return;
-        }
-        const data = record(response.response);
-        resolve(
-          (Array.isArray(data.models) ? data.models : [])
-            .map(record)
+          const models = catalog
             .filter((m) => m.value !== "default")
             .map((m) => ({
               id: str(m.value),
@@ -373,15 +416,27 @@ export async function claudeModels(
                 ? m.supportedEffortLevels
                 : []
               ).filter((e): e is string => typeof e === "string"),
-            })),
-        );
-      };
-      agent.send({
-        type: "control_request",
-        request_id: "models",
-        request: { subtype: "initialize" },
-      });
-    });
+            }));
+          const resolved = catalog.find(
+            (m) => m.value === "default",
+          )?.resolvedModel;
+          const defaultModel =
+            str(
+              catalog.find(
+                (m) => m.value !== "default" && m.resolvedModel === resolved,
+              )?.value,
+            ) ||
+            models[0]?.id ||
+            "";
+          resolve({ models, defaultModel });
+        };
+        agent.send({
+          type: "control_request",
+          request_id: "models",
+          request: { subtype: "initialize" },
+        });
+      },
+    );
   } finally {
     await agent.close();
   }

@@ -62,7 +62,15 @@ test("project chat supports skill selection, real run state, stop, model switchi
           id: "codex",
           name: "Codex",
           available: true,
+          defaultModel: "gpt-6.1-sol",
+          defaultEffort: "low",
           models: [
+            {
+              id: "gpt-6.1-sol",
+              name: "GPT-6.1 Sol",
+              efforts: ["low", "high"],
+              defaultEffort: "medium",
+            },
             {
               id: "local-model",
               name: "Local Model",
@@ -140,6 +148,13 @@ test("project chat supports skill selection, real run state, stop, model switchi
   await page.getByRole("button", { name: "Chat", exact: true }).click();
   const panel = page.getByRole("complementary", { name: "Project chat" });
   await expect(panel).toBeVisible();
+  await expect(
+    panel.getByRole("button", { name: "Select model", exact: true }),
+  ).toHaveText("GPT-6.1 Sol");
+  await expect(
+    panel.getByRole("button", { name: "Select effort", exact: true }),
+  ).toHaveText("low");
+  await expect(panel.getByText("Default", { exact: true })).toHaveCount(0);
   await expect(panel.getByText("Full access")).toHaveCount(0);
   await expect(panel.getByText("Local connection")).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "Chat history" })).toHaveCount(
@@ -151,6 +166,7 @@ test("project chat supports skill selection, real run state, stop, model switchi
   await expect(
     page.getByRole("menuitem", { name: "Local Model", exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /default/i })).toHaveCount(0);
   await page
     .getByRole("menuitem", { name: "Claude Sonnet", exact: true })
     .click();

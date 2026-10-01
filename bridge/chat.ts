@@ -128,11 +128,11 @@ export class ChatService {
           const name = id === "codex" ? "Codex" : "Claude Code";
           try {
             const executable = await agentExecutable(id);
-            const models =
+            const catalog =
               id === "codex"
                 ? await codexModels(executable, cwd)
                 : await claudeModels(executable, cwd);
-            return { id, name, available: true, models };
+            return { id, name, available: true, ...catalog };
           } catch (error) {
             return {
               id,
@@ -315,6 +315,8 @@ export class ChatService {
         ),
       );
       session.engineSessionId = String(record(result.thread).id || "");
+      session.model =
+        typeof result.model === "string" ? result.model : session.model;
       if (!session.engineSessionId)
         throw new Error("Codex did not return a conversation ID");
       await this.save(project.id);

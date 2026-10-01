@@ -27,11 +27,12 @@ export function ChatModelPicker({
   onSelect,
   onEffort,
 }: Props) {
-  const current = providers
-    .find((p) => p.id === provider)
-    ?.models.find((m) => m.id === model);
-  const label = current?.name || model || "Default";
+  const info = providers.find((p) => p.id === provider);
+  const current = info?.models.find((m) => m.id === model);
+  const label = current?.name || model || "Select model";
   const efforts = current?.efforts || [];
+  const inheritedEffort =
+    info?.defaultEffort || current?.defaultEffort || "Auto";
   return (
     <div className="chat-model-controls">
       <Menu.Root>
@@ -56,15 +57,6 @@ export function ChatModelPicker({
           {providers.map((p, i) => (
             <div key={p.id}>
               {i > 0 && <DropdownMenuSeparator />}
-              <DropdownMenuItem
-                disabled={!p.available}
-                onSelect={() => onSelect(p.id, "")}
-              >
-                <span>
-                  {p.id === "codex" ? "GPT default" : "Claude default"}
-                </span>
-                {provider === p.id && !model && <Check size={15} />}
-              </DropdownMenuItem>
               {p.models.map((m) => (
                 <DropdownMenuItem
                   key={m.id}
@@ -88,7 +80,7 @@ export function ChatModelPicker({
               aria-label="Select effort"
               disabled={disabled}
             >
-              {effort || "Default"}
+              {effort || inheritedEffort}
               <ChevronDown size={11} />
             </button>
           </Menu.Trigger>
@@ -102,7 +94,7 @@ export function ChatModelPicker({
             </Menu.Label>
             {["", ...efforts].map((value) => (
               <DropdownMenuItem key={value} onSelect={() => onEffort(value)}>
-                <span>{value || "Default"}</span>
+                <span>{value || "Auto"}</span>
                 {effort === value && <Check size={14} />}
               </DropdownMenuItem>
             ))}
