@@ -710,6 +710,100 @@ test("commit changes and rapid file cycling keep toolbar nodes, styles and geome
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
+test("Git toolbar actions stay with their tab while concurrent requests finish", async ({
+  page,
+}) => {
+  const projects = [
+    { id: "1111111111111111", name: "donkey", path: "/repo/donkey" },
+    { id: "2222222222222222", name: "other", path: "/repo/other" },
+  ];
+  const pending = new Map<string, (fail?: boolean) => void>();
+  const requests: string[] = [];
+  await page.addInitScript(() => {
+    sessionStorage.setItem("donkey-diff-token", "test");
+    localStorage.setItem("donkey-diff-auto-sync", "false");
+  });
+  await page.route("http://127.0.0.1:43127/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const project = projects.find((p) => path.includes(p.id)) || projects[0];
+    let status = 200;
+    let data: unknown = {
+      project,
+      branch: "main",
+      commits: [],
+      files: [],
+      branches: [],
+      worktrees: [],
+      tags: [],
+      remotes: [],
+      stashes: [],
+      ahead: 0,
+      behind: 0,
+    };
+    if (path === "/projects") data = projects;
+    else if (path.endsWith("/files") || path.endsWith("/history")) data = [];
+    else if (path.endsWith("/action")) {
+      requests.push(`${project.id}:${route.request().postDataJSON().action}`);
+      const failed = await new Promise<boolean>((resolve) => {
+        pending.set(project.id, (fail = false) => resolve(fail));
+      });
+      status = failed ? 500 : 200;
+      data = failed ? { error: "Pull rejected" } : { message: "Done" };
+    }
+    await route.fulfill({
+      status,
+      json: data,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+      },
+    });
+  });
+  await page.goto(origin);
+  const tabs = page.locator(".tab-select");
+  const actions = page.locator(".toolbar-actions > .tool[aria-busy]");
+  const pull = page.getByTitle("Pull", { exact: true });
+  const fetch = page.getByTitle("Fetch", { exact: true });
+  await expect(page.locator(".project-heading")).toHaveText("donkey");
+  await pull.click();
+  await expect(pull).toHaveAttribute("aria-busy", "true");
+  await tabs.nth(1).click();
+  await expect(page.locator(".project-heading")).toHaveText("other");
+  for (const button of await actions.all()) await expect(button).toBeEnabled();
+  await expect(actions.locator(".animate-spin")).toHaveCount(0);
+  await fetch.click();
+  await expect(fetch).toHaveAttribute("aria-busy", "true");
+  await expect(pull).toHaveAttribute("aria-busy", "false");
+  await expect
+    .poll(() => requests)
+    .toEqual([`${projects[0].id}:pull`, `${projects[1].id}:fetch`]);
+  await tabs.first().click();
+  await expect(pull).toHaveAttribute("aria-busy", "true");
+  await expect(fetch).toHaveAttribute("aria-busy", "false");
+  for (const button of await actions.all()) await expect(button).toBeDisabled();
+  // Completing the background tab must not clear the selected tab's action.
+  pending.get(projects[1].id)!();
+  await tabs.nth(1).click();
+  for (const button of await actions.all()) await expect(button).toBeEnabled();
+  await tabs.first().click();
+  await expect(pull).toHaveAttribute("aria-busy", "true");
+  await expect(fetch).toBeDisabled();
+  // Failure in a background tab must restore that tab without affecting another.
+  await tabs.nth(1).click();
+  await fetch.click();
+  await expect.poll(() => requests.length).toBe(3);
+  pending.get(projects[0].id)!(true);
+  await tabs.first().click();
+  for (const button of await actions.all()) await expect(button).toBeEnabled();
+  await expect(actions.locator(".animate-spin")).toHaveCount(0);
+  await tabs.nth(1).click();
+  await expect(fetch).toHaveAttribute("aria-busy", "true");
+  for (const button of await actions.all()) await expect(button).toBeDisabled();
+  pending.get(projects[1].id)!();
+  for (const button of await actions.all()) await expect(button).toBeEnabled();
+  await expect(actions.locator(".animate-spin")).toHaveCount(0);
+});
+
 test("Git toolbar actions replace their icons without changing button size", async ({
   page,
 }) => {

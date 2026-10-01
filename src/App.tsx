@@ -178,7 +178,9 @@ export function App() {
   stateRef.current = state;
   const sidebarId = state.worktrees[0]?.path || state.project.id || "preview";
   const [connected, setConnected] = useState(false);
-  const [busy, setBusy] = useState("");
+  const [busyByTab, setBusyByTab] = useState<Record<string, Action>>({});
+  const busy = busyByTab[activeTab];
+  const [modalSubmitting, setModalSubmitting] = useState(false);
   const [syncText, setSyncText] = useState("Example workspace");
   const [selectedCommits, setSelectedCommits] = useState<string[]>([]);
   const [historyRef, setHistoryRef] = useState("");
@@ -834,9 +836,10 @@ export function App() {
     return false;
   };
   const action = async (type: Action, input: Record<string, string> = {}) => {
-    if (!requireConnection() || !active) return;
+    if (!requireConnection() || !active || busy) return;
     const id = active;
-    setBusy(type);
+    const tab = activeTab;
+    setBusyByTab((previous) => ({ ...previous, [tab]: type }));
     setActionError("");
     try {
       const result = await bridge.action(id, type, input);
@@ -895,7 +898,11 @@ export function App() {
       if (activeRef.current === id) setActionError((error as Error).message);
       throw error;
     } finally {
-      setBusy("");
+      setBusyByTab((previous) => {
+        const next = { ...previous };
+        delete next[tab];
+        return next;
+      });
     }
   };
   const run = (type: Action, input: Record<string, string> = {}) =>
@@ -1046,6 +1053,8 @@ export function App() {
     } else setSelected(path);
   };
   const submitModal = async () => {
+    if (modalSubmitting) return;
+    setModalSubmitting(true);
     setModalError("");
     try {
       if (modal?.kind === "connect") {
@@ -1057,7 +1066,6 @@ export function App() {
           return;
         }
       } else if (modal?.kind === "open") {
-        setBusy("Opening project");
         const project = await bridge.add(values.path);
         setProjects(await bridge.projects());
         openProject(project.id);
@@ -1068,7 +1076,7 @@ export function App() {
     } catch (error) {
       setModalError((error as Error).message);
     } finally {
-      setBusy("");
+      setModalSubmitting(false);
     }
   };
   const currentCommit =
@@ -1234,7 +1242,9 @@ export function App() {
             Dev
           </span>
         )}
-        <UpdateButton busy={!!busy} />
+        <UpdateButton
+          busy={modalSubmitting || Object.keys(busyByTab).length > 0}
+        />
       </div>
       <div className="project-workspace">
         {noProject ? (
@@ -2458,10 +2468,14 @@ export function App() {
               </Button>
               <Button
                 type="submit"
-                disabled={!!busy}
+                disabled={
+                  modalSubmitting || (modal?.kind === "action" && !!busy)
+                }
                 variant={modal?.danger ? "destructive" : "default"}
               >
-                {busy ? <Loader2 size={14} className="animate-spin" /> : null}
+                {modalSubmitting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : null}
                 {modal?.danger
                   ? "Confirm deletion"
                   : modal?.kind === "open"
