@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Virtualizer } from "@pierre/diffs/react";
-import { PreparedDiff, type ChangeNavigation } from "@/components/PreparedDiff";
+import {
+  PreparedDiff,
+  type ChangeNavigation,
+  type ChangeMarker,
+} from "@/components/PreparedDiff";
 import { DIFF_THEME } from "@/diff-theme";
 import {
   FileCode2,
@@ -41,6 +45,22 @@ export function DiffPane({
   const [resolution, setResolution] = useState("");
   const navigation = useRef<ChangeNavigation>(null);
   const [changeCount, setChangeCount] = useState(0);
+  const [overview, setOverview] = useState<{
+    source: FileContent;
+    markers: ChangeMarker[];
+  }>();
+  const updateOverview = useMemo(
+    () => (markers: ChangeMarker[]) => {
+      if (!content) return;
+      setOverview((previous) =>
+        previous?.source === content &&
+        JSON.stringify(previous.markers) === JSON.stringify(markers)
+          ? previous
+          : { source: content, markers },
+      );
+    },
+    [content],
+  );
   const [showSvg, setShowSvg] = usePersistentBoolean(
     "global",
     "viewer",
@@ -220,6 +240,7 @@ export function DiffPane({
             <PreparedDiff
               ref={navigation}
               onChangesReady={setChangeCount}
+              onOverviewReady={updateOverview}
               content={content}
               options={{
                 ...options,
@@ -245,6 +266,7 @@ export function DiffPane({
           <PreparedDiff
             ref={navigation}
             onChangesReady={setChangeCount}
+            onOverviewReady={updateOverview}
             content={content}
             options={options}
             fileMode={fileMode}
@@ -254,6 +276,23 @@ export function DiffPane({
           <div className="diff-scroll-space" aria-hidden="true" />
         )}
       </Virtualizer>
+      {!fileMode &&
+        !content?.binary &&
+        overview?.source === content &&
+        !!overview?.markers.length && (
+          <nav className="diff-change-overview" aria-label="Changes in file">
+            {overview.markers.map((marker, index) => (
+              <button
+                key={index}
+                className={`diff-change-marker ${marker.side}`}
+                style={{ top: `${marker.top * 100}%` }}
+                title={`Change ${index + 1}, line ${marker.line}`}
+                aria-label={`Jump to change ${index + 1}, line ${marker.line}`}
+                onClick={() => navigation.current?.jumpTo(index)}
+              />
+            ))}
+          </nav>
+        )}
     </section>
   );
 }

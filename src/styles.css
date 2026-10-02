@@ -2913,3 +2913,39 @@ button svg {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* Keep change locations visible independently of the virtualized diff rows. */
+.diff-pane {
+  position: relative;
+}
+.diff-change-overview {
+  position: absolute;
+  top: 39px;
+  bottom: 8px;
+  right: 2px;
+  width: 12px;
+  z-index: 5;
+  pointer-events: none;
+}
+.diff-change-marker {
+  position: absolute;
+  right: 0;
+  width: 10px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+  background: #72bd80;
+}
+.diff-change-marker.deletions {
+  background: #e18a87;
+}
+.diff-change-marker:hover,
+.diff-change-marker:focus-visible {
+  width: 12px;
+  outline: 1px solid #fff;
+  outline-offset: 1px;
+}

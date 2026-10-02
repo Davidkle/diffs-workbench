@@ -16,11 +16,20 @@ import type { FileContent } from "@/types";
 type Props = {
   ref?: Ref<ChangeNavigation>;
   onChangesReady?: (count: number) => void;
+  onOverviewReady?: (markers: ChangeMarker[]) => void;
   content: FileContent;
   options: ComponentProps<typeof FileDiff>["options"];
   fileMode?: boolean;
 };
-export type ChangeNavigation = { jump: (direction: -1 | 1) => void };
+export type ChangeMarker = {
+  top: number;
+  side: "additions" | "deletions";
+  line: number;
+};
+export type ChangeNavigation = {
+  jump: (direction: -1 | 1) => void;
+  jumpTo: (index: number) => void;
+};
 type PreparedResult = {
   source: FileContent;
   diff?: FileDiffMetadata;
@@ -35,6 +44,7 @@ export const PreparedDiff = memo(function PreparedDiff({
   fileMode,
   ref,
   onChangesReady,
+  onOverviewReady,
 }: Props) {
   const virtualizer = useVirtualizer();
   const instance = useRef<VirtualizedFileDiff | null>(null);
@@ -56,6 +66,32 @@ export const PreparedDiff = memo(function PreparedDiff({
   useImperativeHandle(
     ref,
     () => ({
+      jumpTo(index) {
+        if (
+          fileMode ||
+          result?.source !== content ||
+          !result.diff ||
+          !instance.current ||
+          !virtualizer
+        )
+          return;
+        const target = changeTargets(result.diff)[index];
+        if (!target) return;
+        const position = instance.current.getLinePosition(
+          target.line,
+          target.side,
+        );
+        if (!position) return;
+        virtualizer.scrollTo({
+          top: Math.max(0, (instance.current.top ?? 0) + position.top - 8),
+          behavior: "instant",
+        });
+        cursor.current = {
+          source: content,
+          index,
+          scrollTop: virtualizer.getScrollTop(),
+        };
+      },
       jump(direction) {
         if (
           fileMode ||
@@ -192,8 +228,24 @@ export const PreparedDiff = memo(function PreparedDiff({
         options={{
           ...options,
           onPostRender: (_node, rendered) => {
-            if (rendered instanceof VirtualizedFileDiff)
+            if (rendered instanceof VirtualizedFileDiff) {
               instance.current = rendered;
+              if (result.source === content) {
+                onOverviewReady?.(
+                  changeTargets(result.diff!).map((target) => ({
+                    ...target,
+                    top: Math.min(
+                      1,
+                      Math.max(
+                        0,
+                        (rendered.getLinePosition(target.line, target.side)
+                          ?.top ?? 0) / Math.max(1, rendered.height),
+                      ),
+                    ),
+                  })),
+                );
+              }
+            }
           },
         }}
       />

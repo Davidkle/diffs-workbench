@@ -927,3 +927,42 @@ test("fast file arrows cancel stale reads and display the final file without wai
   releaseRefresh();
   expect(errors).toEqual([]);
 });
+
+test("right-edge change markers jump to changes and hide in file mode", async ({
+  page,
+}) => {
+  await fixture(page);
+  await ready(page);
+  await page.getByRole("button", { name: "Full file", exact: true }).click();
+  const overview = page.getByRole("navigation", { name: "Changes in file" });
+  const marker = overview.getByRole("button").first();
+  await expect(marker).toBeVisible();
+  await expect
+    .poll(() => marker.evaluate((node) => parseFloat(node.style.top)))
+    .toBeGreaterThan(40);
+  await marker.click();
+  await expect
+    .poll(() =>
+      page.locator(".diff-content").evaluate((node) => node.scrollTop),
+    )
+    .toBeGreaterThan(1000);
+  await page
+    .getByRole("button", { name: "Toggle split diff", exact: true })
+    .click();
+  await expect(marker).toBeVisible();
+  await page.locator(".diff-content").evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  await marker.click();
+  await expect
+    .poll(() =>
+      page.locator(".diff-content").evaluate((node) => node.scrollTop),
+    )
+    .toBeGreaterThan(1000);
+  await page.getByRole("button", { name: "All Commits", exact: true }).click();
+  await page
+    .locator(".workspace-tabs")
+    .getByRole("button", { name: "File Tree", exact: true })
+    .click();
+  await expect(overview).toHaveCount(0);
+});
