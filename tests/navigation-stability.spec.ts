@@ -799,6 +799,36 @@ test("rapid arrows through newly discovered worktrees honor the last selection",
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
+test("file viewing errors disappear when cycling to another file", async ({
+  page,
+}) => {
+  await fixture(page);
+  await ready(page);
+  await page.route("**/projects/*/file?**", async (route) => {
+    const name = new URL(route.request().url()).searchParams.get("path")!;
+    await route.fulfill({
+      status: name === "src/01.ts" ? 400 : 200,
+      headers: { "Access-Control-Allow-Origin": "*" },
+      json:
+        name === "src/01.ts"
+          ? { error: "File exceeds the 5 MB viewing limit" }
+          : {
+              path: name,
+              old: "before\n",
+              current: "after\n",
+              binary: false,
+              conflict: false,
+            },
+    });
+  });
+  await page.locator('.tree-item-select[data-path="src/00.ts"]').click();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("alert")).toContainText("5 MB viewing limit");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator(".diff-toolbar")).toContainText("src/02.ts");
+});
+
 test("fast file arrows cancel stale reads and display the final file without waiting for them", async ({
   page,
 }) => {

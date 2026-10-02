@@ -7,6 +7,21 @@ import { fileContent, git } from "./git.js";
 
 const decode = (url: string) => Buffer.from(url.split(",")[1], "base64");
 
+test("large .bin files are reported as binary without the text viewing limit", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "donkey-binary-"));
+  try {
+    await git(dir, ["init", "-b", "main"]);
+    await writeFile(path.join(dir, "weights.BIN"), "");
+    await truncate(path.join(dir, "weights.BIN"), 6 * 1024 * 1024);
+    const content = await fileContent(dir, "weights.BIN");
+    assert.equal(content.binary, true);
+    assert.equal(content.old, "");
+    assert.equal(content.current, "");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("media preserves bytes across commits, index, working tree, renames and deletions", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "donkey-media-"));
   const name = "poster #1.JPG";

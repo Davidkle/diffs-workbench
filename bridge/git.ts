@@ -454,6 +454,15 @@ export async function fileContent(
       );
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
+  if (path.extname(name).toLowerCase() === ".bin") {
+    return {
+      path: name,
+      old: "",
+      current: "",
+      binary: true,
+      conflict: changed?.conflict || false,
+    };
+  }
   const oldName = layer === "unstaged" ? name : changed?.oldPath || name;
   const mediaType = mediaTypes[path.extname(name).toLowerCase()];
   if (mediaType) {

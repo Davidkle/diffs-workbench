@@ -303,6 +303,23 @@ export function App() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [modalError, setModalError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [fileError, setFileError] = useState<{
+    context: string;
+    message: string;
+  } | null>(null);
+  const fileErrorContext = JSON.stringify([
+    active,
+    selected,
+    commit,
+    comparisonBase,
+    view,
+    stageLayer,
+  ]);
+  const visibleFileError =
+    fileError?.context === fileErrorContext ? fileError.message : "";
+  useEffect(() => {
+    setFileError(null);
+  }, [fileErrorContext]);
   const [revision, setRevision] = useState(0);
   const activeRef = useRef(active);
   activeRef.current = active;
@@ -779,6 +796,7 @@ export function App() {
               );
           }
           setContent(value);
+          setFileError(null);
         })
         .catch((error) => {
           if (
@@ -787,7 +805,7 @@ export function App() {
             activeRef.current === active
           ) {
             setContent(null);
-            setActionError(error.message);
+            setFileError({ context: fileErrorContext, message: error.message });
           }
         })
         .finally(() => {
@@ -816,6 +834,7 @@ export function App() {
     revision,
     state.project.id,
     projectError,
+    fileErrorContext,
   ]);
   useEffect(() => {
     if (
@@ -1896,12 +1915,15 @@ export function App() {
                       </button>
                     </div>
                   )}
-                  {actionError && (
+                  {(actionError || visibleFileError) && (
                     <div className="action-error" role="alert">
-                      <span>{actionError}</span>
+                      <span>{actionError || visibleFileError}</span>
                       <button
                         aria-label="Dismiss error"
-                        onClick={() => setActionError("")}
+                        onClick={() => {
+                          setActionError("");
+                          setFileError(null);
+                        }}
                       >
                         <X size={14} />
                       </button>
