@@ -716,6 +716,47 @@ test("file endings can scroll near the top in diff and whole-file views", async 
   await checkEnd();
 });
 
+test("switching files starts at the top in diff and whole-file views", async ({
+  page,
+}) => {
+  await fixture(page);
+  await ready(page);
+  await page.getByRole("button", { name: "Full file", exact: true }).click();
+  const viewer = page.locator(".diff-content");
+  const waitForFile = async () => {
+    await expect(page.locator(".diff-pane")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    await expect(page.locator(".diff-content .empty")).toHaveCount(0);
+    await expect(page.locator("diffs-container")).toBeVisible();
+  };
+  const switchFiles = async () => {
+    for (const path of ["src/01.ts", "src/00.ts"]) {
+      await viewer.evaluate((node) => {
+        node.scrollTop = 1500;
+      });
+      await expect
+        .poll(() => viewer.evaluate((node) => node.scrollTop))
+        .toBeGreaterThan(0);
+      await page.locator(`.tree-item-select[data-path="${path}"]`).click();
+      await expect(page.locator(".diff-toolbar")).toContainText(path);
+      await waitForFile();
+      await expect
+        .poll(() => viewer.evaluate((node) => node.scrollTop))
+        .toBe(0);
+    }
+  };
+  await switchFiles();
+  await page.getByRole("button", { name: "All Commits", exact: true }).click();
+  await page
+    .locator(".workspace-tabs")
+    .getByRole("button", { name: "File Tree", exact: true })
+    .click();
+  await waitForFile();
+  await switchFiles();
+});
+
 test("plain dividers resize from both ends of each panel boundary", async ({
   page,
 }) => {

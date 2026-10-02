@@ -165,7 +165,11 @@ export function DiffPane({
           Loading file…
         </span>
       )}
-      <Virtualizer className="diff-content" config={{ overscrollSize: 500 }}>
+      <Virtualizer
+        key={content?.path}
+        className="diff-content"
+        config={{ overscrollSize: 500 }}
+      >
         {isSvg && showSvg && content && (
           <SvgPreview content={content} fileMode={fileMode} />
         )}
