@@ -7,6 +7,7 @@ export type Project = {
 };
 export type ChangedFile = {
   path: string;
+  directory?: boolean;
   oldPath?: string;
   status: string;
   staged: boolean;
@@ -57,6 +58,8 @@ export type FileContent = {
   path: string;
   old: string;
   current: string;
+  /** Directory entries have no file contents to preview. */
+  directory?: boolean;
   /** Media sides contain data URLs instead of decoded text. */
   mediaType?: string;
   binary: boolean;

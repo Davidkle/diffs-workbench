@@ -193,7 +193,7 @@ function TreeNode({
         className="tree-item-select"
         data-path={node.path}
         onClick={() => onSelect(node.path)}
-        title={node.path}
+        title={node.file?.directory ? `${node.path} (directory)` : node.path}
         onDoubleClick={() => onDoubleClick?.(node.path)}
       >
         {isFolder ? (
@@ -209,7 +209,11 @@ function TreeNode({
             <span className={`status-badge status-${node.file?.status || "N"}`}>
               {node.file?.status || "·"}
             </span>
-            <FileCode2 size={14} className="file-icon" />
+            {node.file?.directory ? (
+              <Folder size={15} className="folder" />
+            ) : (
+              <FileCode2 size={14} className="file-icon" />
+            )}
           </>
         )}
         <span className="truncate">{node.name}</span>

@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, rm, symlink, readFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  writeFile,
+  rm,
+  symlink,
+  readFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -74,6 +81,77 @@ test("porcelain parser handles spaces, staged renames and conflicts", () => {
   assert.equal(files[1].staged, true);
   assert.equal(files[2].status, "A");
   assert.equal(files[3].conflict, true);
+});
+test("nested repositories have named rows and directory previews", async () => {
+  const dir = await fixture();
+  try {
+    const nested = path.join(dir, "maplewood");
+    await mkdir(nested);
+    await git(nested, ["init", "-b", "main"]);
+    await writeFile(path.join(nested, "game.ts"), "export {};\n");
+    await writeFile(path.join(dir, "preview.png"), Buffer.from([0, 1, 2]));
+    const files = await changedFiles(dir);
+    assert.deepEqual(files.map((file) => file.path).sort(), [
+      "maplewood",
+      "preview.png",
+    ]);
+    assert.equal(
+      files.find((file) => file.path === "maplewood")?.directory,
+      true,
+    );
+    assert.equal(
+      files.find((file) => file.path === "preview.png")?.directory,
+      undefined,
+    );
+    for (const name of ["maplewood", "maplewood/"]) {
+      const content = await fileContent(
+        dir,
+        name,
+        undefined,
+        undefined,
+        "unstaged",
+      );
+      assert.equal(content.directory, true);
+      assert.equal(content.binary, true);
+      assert.equal(content.old, "");
+      assert.equal(content.current, "");
+    }
+    assert.equal(
+      (await fileContent(dir, "preview.png")).mediaType,
+      "image/png",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+test("directory previews preserve staged and historical file contents", async () => {
+  const dir = await fixture();
+  try {
+    const head = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await rm(path.join(dir, "hello.ts"));
+    await mkdir(path.join(dir, "hello.ts"));
+    await mkdir(path.join(dir, "folder.png"));
+    assert.equal((await fileContent(dir, "hello.ts")).directory, true);
+    const mediaFolder = await fileContent(dir, "folder.png");
+    assert.equal(mediaFolder.directory, true);
+    assert.equal(mediaFolder.mediaType, undefined);
+    for (const [commit, layer] of [
+      [head, undefined],
+      [undefined, "staged"],
+    ] as const) {
+      const content = await fileContent(
+        dir,
+        "hello.ts",
+        commit,
+        undefined,
+        layer,
+      );
+      assert.equal(content.directory, undefined);
+      assert.equal(content.current, 'const hello = "world";\n');
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 test("history and snapshots expose complete merge ancestry in topological order", async () => {
   const dir = await fixture();

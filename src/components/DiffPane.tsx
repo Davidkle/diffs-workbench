@@ -8,6 +8,7 @@ import {
 import { DIFF_THEME } from "@/diff-theme";
 import {
   FileCode2,
+  Folder,
   Columns2,
   WrapText,
   ChevronDown,
@@ -92,7 +93,7 @@ export function DiffPane({
     <section className="diff-pane" aria-busy={loading}>
       <div className="diff-toolbar">
         <div className="file-name">
-          <FileCode2 size={14} />
+          {content?.directory ? <Folder size={14} /> : <FileCode2 size={14} />}
           <span>{content?.path || "No file selected"}</span>
         </div>
         <div className="diff-controls">
@@ -201,6 +202,12 @@ export function DiffPane({
         ) : !content ? (
           <div className="empty">
             <p>Select a file to view changes.</p>
+          </div>
+        ) : content.directory ? (
+          <div className="empty">
+            <Folder size={32} />
+            <h3>Directory</h3>
+            <p>Open this folder as a project to view its files and changes.</p>
           </div>
         ) : content.mediaType ? (
           <MediaPreview content={content} fileMode={fileMode} />

@@ -771,6 +771,7 @@ export function App() {
             previous.path === next.path &&
             previous.old === next.old &&
             previous.current === next.current &&
+            previous.directory === next.directory &&
             previous.binary === next.binary &&
             previous.mediaType === next.mediaType &&
             previous.conflict === next.conflict &&

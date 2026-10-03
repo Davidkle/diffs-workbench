@@ -93,7 +93,9 @@ export function parseStatus(raw: string): ChangedFile[] {
     const name = entry.slice(3);
     const oldPath = /[RC]/.test(xy) ? entries[++i] : undefined;
     files.push({
-      path: name,
+      // Git reports nested untracked repositories as directory entries.
+      path: name.replace(/\/$/, ""),
+      ...(name.endsWith("/") ? { directory: true } : {}),
       oldPath,
       status:
         xy === "??"
@@ -454,6 +456,21 @@ export async function fileContent(
       );
   const changed = files.find((f) => f.path === name);
   if (commit) await validateCommit(cwd, commit);
+  if (!commit && layer !== "staged") {
+    try {
+      if ((await lstat(target)).isDirectory())
+        return {
+          path: name,
+          old: "",
+          current: "",
+          directory: true,
+          binary: true,
+          conflict: changed?.conflict || false,
+        };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
   if (path.extname(name).toLowerCase() === ".bin") {
     return {
       path: name,
